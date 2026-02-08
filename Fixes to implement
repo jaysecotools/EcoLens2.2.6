@@ -1,208 +1,13 @@
-** Fixes for Data Import Issue in Version 2.2.6.5 **
+I can see the issue! You have multiple functions with the same name (showMiniMap and hideCSVPreview) defined in different places, and there's a missing closing brace. Let me fix this for you:
 
-Looking at your code, I can see several issues with the import functionality. The main problems are:
-
-1. **Missing event handlers**: You have setup code for CSV and JSON import previews but the actual file inputs aren't properly connected
-2. **Missing functions**: Some referenced functions don't exist or aren't implemented
-3. **Incomplete import flow**: The import process isn't properly wired up
-
-Here's the corrected import section with all the necessary fixes:
-
-## Replace your `handlePreviewCSVImport` function with this:
+Here's the corrected code. Replace the problematic section starting from line 1190 (where the duplicate showMiniMap function is):
 
 ```javascript
-// Handle CSV preview - FIXED
-handlePreviewCSVImport() {
-    const fileInput = document.getElementById('csv-import');
-    if (!fileInput) {
-        this.showStatus('CSV import input not found', 'error', 'export');
-        return;
-    }
-    
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        this.showStatus('Please select a CSV file', 'error', 'export');
-        return;
-    }
+    // Show mini map for coordinate preview - REMOVE THE DUPLICATE FUNCTION
+    // DELETE lines 1190-1214 (the duplicate showMiniMap function)
+    // It's already defined earlier at line 1153
 
-    const MAX_FILE_SIZE = 10 * 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-        this.showStatus(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, 'error', 'export');
-        fileInput.value = '';
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const previewBtn = document.getElementById('preview-import');
-            const originalText = previewBtn ? previewBtn.innerHTML : 'Preview Import';
-            if (previewBtn) {
-                previewBtn.innerHTML = '<span class="loading"></span> Validating...';
-                previewBtn.disabled = true;
-            }
-
-            console.log('Starting CSV validation...');
-            const validationResult = this.validateAndParseCSV(e.target.result);
-            this.csvPreviewData = validationResult;
-            
-            console.log('Validation result:', {
-                totalRows: validationResult.totalRows,
-                validRows: validationResult.validRows,
-                invalidRows: validationResult.invalidRows,
-                warnings: validationResult.warnings.length,
-                errors: validationResult.errors.length
-            });
-            
-            this.showCSVPreview(validationResult);
-            
-            if (previewBtn) {
-                previewBtn.innerHTML = originalText;
-                previewBtn.disabled = false;
-            }
-
-            if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
-                this.showStatus(`Validation completed with ${validationResult.errors.length} errors and ${validationResult.warnings.length} warnings`, 
-                              validationResult.errors.length > 0 ? 'warning' : 'info', 'export');
-            } else {
-                this.showStatus('CSV file validated successfully! Ready for import.', 'success', 'export');
-            }
-
-        } catch (error) {
-            console.error('Preview error details:', error);
-            const previewBtn = document.getElementById('preview-import');
-            if (previewBtn) {
-                previewBtn.innerHTML = '👁️ Preview Import';
-                previewBtn.disabled = false;
-            }
-            this.showStatus(`Validation failed: ${error.message}`, 'error', 'export');
-            console.error('Validation error:', error);
-        }
-    };
-
-    reader.onerror = () => {
-        const previewBtn = document.getElementById('preview-import');
-        if (previewBtn) {
-            previewBtn.innerHTML = '👁️ Preview Import';
-            previewBtn.disabled = false;
-        }
-        this.showStatus('Error reading file. Please try again.', 'error', 'export');
-    };
-
-    reader.readAsText(file, 'UTF-8');
-},
-```
-
-## Add this missing function for CSV validation statistics:
-
-```javascript
-// Update CSV validation statistics - ADD THIS FUNCTION
-updateCSVValidationStats(validationResult) {
-    const statsDiv = document.getElementById('validation-stats');
-    if (!statsDiv) return;
-    
-    const validCountEl = document.getElementById('valid-count');
-    const invalidCountEl = document.getElementById('invalid-count');
-    const warningCountEl = document.getElementById('warning-count');
-    const skippedCountEl = document.getElementById('skipped-count');
-    
-    if (validCountEl) validCountEl.textContent = validationResult.validRows;
-    if (invalidCountEl) invalidCountEl.textContent = validationResult.invalidRows;
-    if (warningCountEl) warningCountEl.textContent = validationResult.warningRows;
-    if (skippedCountEl) skippedCountEl.textContent = validationResult.skippedRows;
-    
-    statsDiv.style.display = 'flex';
-},
-```
-
-## Replace the `showCSVPreview` function with this complete version:
-
-```javascript
-// Show CSV preview - COMPLETE FIXED VERSION
-showCSVPreview(validationResult) {
-    const previewSection = document.getElementById('csv-preview-section');
-    const statsDiv = document.getElementById('validation-stats');
-    const summaryDiv = document.getElementById('validation-summary');
-    const previewTable = document.getElementById('csv-preview-table');
-    
-    if (!previewSection) {
-        console.error('CSV preview section not found');
-        return;
-    }
-    
-    // Clear previous content
-    summaryDiv.innerHTML = '';
-    previewTable.innerHTML = '';
-    
-    // Update statistics
-    this.updateCSVValidationStats(validationResult);
-    
-    // Build validation summary
-    let summaryHTML = `<div class="status-${validationResult.errors.length > 0 ? 'error' : validationResult.warnings.length > 0 ? 'warning' : 'success'} validation-summary">`;
-    summaryHTML += `<strong>Validation Summary:</strong> ${validationResult.summary}`;
-    
-    // Show skipped rows info if any
-    if (validationResult.skippedRows > 0) {
-        summaryHTML += `<div class="validation-info">`;
-        summaryHTML += `<strong>📄 Header Detection:</strong> Found headers at row ${validationResult.headerRowIndex + 1}, skipped ${validationResult.skippedRows} row${validationResult.skippedRows > 1 ? 's' : ''} as metadata`;
-        summaryHTML += `</div>`;
-    }
-    
-    // Show errors
-    if (validationResult.errors.length > 0) {
-        summaryHTML += '<div class="validation-errors">';
-        summaryHTML += '<strong>❌ Critical Errors (must be fixed):</strong>';
-        const errorCount = Math.min(validationResult.errors.length, 5);
-        for (let i = 0; i < errorCount; i++) {
-            summaryHTML += `<div class="validation-error">${validationResult.errors[i]}</div>`;
-        }
-        if (validationResult.errors.length > 5) {
-            summaryHTML += `<div class="validation-error">... and ${validationResult.errors.length - 5} more errors</div>`;
-        }
-        summaryHTML += '</div>';
-    }
-    
-    // Show warnings
-    if (validationResult.warnings.length > 0) {
-        summaryHTML += '<div class="validation-warnings">';
-        summaryHTML += '<strong>⚠️ Warnings (should be reviewed):</strong>';
-        const warningCount = Math.min(validationResult.warnings.length, 5);
-        for (let i = 0; i < warningCount; i++) {
-            summaryHTML += `<div class="validation-warning">${validationResult.warnings[i]}</div>`;
-        }
-        if (validationResult.warnings.length > 5) {
-            summaryHTML += `<div class="validation-warning">... and ${validationResult.warnings.length - 5} more warnings</div>`;
-        }
-        summaryHTML += '</div>';
-    }
-    
-    // Show sample observation
-    const sampleObs = validationResult.rows[0];
-    if (sampleObs && sampleObs.data) {
-        summaryHTML += '<div class="sample-preview">';
-        summaryHTML += '<strong>📋 Sample Observation:</strong><br>';
-        summaryHTML += `<code>${this.escapeHtml(sampleObs.data.scientificName)} - ${new Date(sampleObs.data.timestamp).toLocaleDateString()}`;
-        if (sampleObs.data.photo) {
-            summaryHTML += ' (with photo)';
-        }
-        summaryHTML += '</code>';
-        summaryHTML += '</div>';
-    }
-    
-    summaryHTML += '</div>';
-    summaryDiv.innerHTML = summaryHTML;
-    
-    // Show mini map if coordinates are available
-    const miniMapContainer = document.getElementById('mini-map-container');
-    if (validationResult.hasCoordinates && validationResult.coordinates.length > 0 && miniMapContainer) {
-        this.showMiniMap(validationResult.coordinates);
-        miniMapContainer.style.display = 'block';
-    } else if (miniMapContainer) {
-        miniMapContainer.style.display = 'none';
-    }
-    
-    // Build preview table (limit to first 10 rows)
+    // Build preview table (limit to first 10 rows) - FIXED
     const maxPreviewRows = 10;
     const rowsToShow = validationResult.rows.slice(0, maxPreviewRows);
     
@@ -295,154 +100,115 @@ showCSVPreview(validationResult) {
 },
 ```
 
-## Fix the event listener setup in the `setupEventListeners` function:
+Also, remove the duplicate hideCSVPreview function at line 1219. You already have one at line 824.
 
-Add these lines to your existing `setupEventListeners` function:
+Fix the missing closing brace issue:
+
+Find this line (around line 1652):
 
 ```javascript
-// Add these to your existing setupEventListeners function:
-
-// CSV import handlers
-const previewImportBtn = document.getElementById('preview-import');
-if (previewImportBtn) {
-    previewImportBtn.addEventListener('click', () => {
-        this.handlePreviewCSVImport();
-    });
-}
-
-const confirmCSVBtn = document.getElementById('confirm-import');
-if (confirmCSVBtn) {
-    confirmCSVBtn.addEventListener('click', () => {
-        this.handleConfirmCSVImport();
-    });
-}
-
-const cancelCSVBtn = document.getElementById('cancel-import');
-if (cancelCSVBtn) {
-    cancelCSVBtn.addEventListener('click', () => {
-        this.hideCSVPreview();
-    });
-}
-
-// JSON import handlers
-const previewJSONBtn = document.getElementById('preview-json-import');
-if (previewJSONBtn) {
-    previewJSONBtn.addEventListener('click', () => {
-        this.handlePreviewJSONImport();
-    });
-}
-
-const confirmJSONBtn = document.getElementById('confirm-json-import');
-if (confirmJSONBtn) {
-    confirmJSONBtn.addEventListener('click', () => {
-        this.handleConfirmJSONImport();
-    });
-}
-
-const cancelJSONBtn = document.getElementById('cancel-json-import');
-if (cancelJSONBtn) {
-    cancelJSONBtn.addEventListener('click', () => {
-        this.hideJSONPreview();
-    });
-}
+compressPhoto(photoData, options = {}) {
 ```
 
-## Add the missing `hideCSVPreview` function:
+And make sure it has a closing brace. It should look like:
 
 ```javascript
-// Hide CSV preview
-hideCSVPreview() {
-    const previewSection = document.getElementById('csv-preview-section');
-    const statsDiv = document.getElementById('validation-stats');
-    const csvImport = document.getElementById('csv-import');
-    
-    if (previewSection) previewSection.style.display = 'none';
-    if (statsDiv) statsDiv.style.display = 'none';
-    if (csvImport) csvImport.value = '';
-    this.csvPreviewData = null;
-    
-    const progressUI = document.getElementById('csv-import-progress');
-    if (progressUI) progressUI.style.display = 'none';
-    
-    if (this.miniMap) {
-        try {
-            this.miniMap.remove();
-        } catch (e) {
-            console.warn('Error removing mini map:', e);
-        }
-        this.miniMap = null;
-    }
-    const miniMapContainer = document.getElementById('mini-map-container');
-    if (miniMapContainer) {
-        miniMapContainer.innerHTML = '';
-        miniMapContainer.style.display = 'none';
-    }
-    
-    this.showStatus('Import cancelled', 'info', 'export');
-},
-```
-
-## Add this function to show the mini map for coordinates:
-
-```javascript
-// Show mini map for coordinate preview
-showMiniMap(coordinates) {
-    const container = document.getElementById('mini-map-container');
-    if (!container || coordinates.length === 0) return;
-    
-    // Clear existing map
-    container.innerHTML = '';
-    
-    if (typeof L === 'undefined') {
-        console.error('Leaflet not available');
-        return;
-    }
-    
-    try {
-        // Create map
-        const map = L.map(container).setView([coordinates[0].lat, coordinates[0].lng], 5);
+    // Photo compression utility
+    async compressPhoto(photoData, options = {}) {
+        const {
+            maxWidth = 1024,
+            maxHeight = 1024,
+            quality = 0.7,
+            mimeType = 'image/jpeg'
+        } = options;
         
-        // Add tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-        
-        // Add markers
-        coordinates.forEach(coord => {
-            L.marker([coord.lat, coord.lng]).addTo(map)
-                .bindPopup(`Lat: ${coord.lat.toFixed(4)}, Lng: ${coord.lng.toFixed(4)}`);
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+                if (height > maxHeight) {
+                    width = Math.round((width * maxHeight) / height);
+                    height = maxHeight;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                try {
+                    const compressedDataUrl = canvas.toDataURL(mimeType, quality);
+                    resolve({
+                        data: compressedDataUrl,
+                        width: width,
+                        height: height,
+                        originalSize: photoData.length,
+                        compressedSize: compressedDataUrl.length,
+                        compressionRatio: Math.round((1 - (compressedDataUrl.length / photoData.length)) * 100)
+                    });
+                } catch (error) {
+                    console.warn('Compression failed, using original:', error);
+                    resolve({
+                        data: photoData,
+                        width: img.width,
+                        height: img.height,
+                        originalSize: photoData.length,
+                        compressedSize: photoData.length,
+                        compressionRatio: 0
+                    });
+                }
+            };
+            
+            img.onerror = function() {
+                console.warn('Image loading failed, using original');
+                resolve({
+                    data: photoData,
+                    originalSize: photoData.length,
+                    compressedSize: photoData.length,
+                    compressionRatio: 0
+                });
+            };
+            
+            img.src = photoData;
         });
-        
-        // Fit bounds if multiple coordinates
-        if (coordinates.length > 1) {
-            const bounds = L.latLngBounds(coordinates.map(c => [c.lat, c.lng]));
-            map.fitBounds(bounds);
-        }
-        
-        this.miniMap = map;
-        
-    } catch (error) {
-        console.error('Error creating mini map:', error);
-        container.innerHTML = '<div class="status-message status-error">Map preview unavailable</div>';
-    }
-},
+    }, // <-- This comma is correct, don't remove it
 ```
 
-## Key Issues Fixed:
+Summary of changes needed:
 
-1. **Missing event handlers** - Now properly connected
-2. **Incomplete `showCSVPreview` function** - Now fully implemented
-3. **Missing `hideCSVPreview` function** - Added
-4. **Missing `showMiniMap` function** - Added for coordinate visualization
-5. **Missing `updateCSVValidationStats` function** - Added
-6. **Proper error handling** - Added comprehensive try-catch blocks
-7. **UI feedback** - Added proper status messages throughout
+1. Remove the duplicate showMiniMap function at lines 1190-1214 (it's already defined earlier)
+2. Remove the duplicate hideCSVPreview function at line 1219 (it's already defined earlier at line 824)
+3. Ensure all functions have proper closing braces - check the compressPhoto function around line 1652
+4. Make sure there are no syntax errors by checking all function definitions
 
-After making these changes, your import functionality should work. The CSV import will:
-1. Validate the file format and headers
-2. Show a preview of the data with validation results
-3. Display statistics about valid/invalid rows
-4. Show a map preview if coordinates are included
-5. Allow you to confirm or cancel the import
+The main issue is that you have duplicate function definitions. JavaScript will use the last definition, which might be causing your import functionality to not work properly.
 
-Make sure to add all these functions to your `EcoLens` object in the correct places (they should be added as methods inside the object, alongside your other functions).
+Quick test to see if it's working:
+
+After making these changes, try this simple test:
+
+1. Go to the Export tab
+2. Click "Download Template" to get a sample CSV
+3. Try importing that CSV file
+4. Click "Preview CSV Import"
+
+If the preview shows up, then your import functionality is working. If not, check the browser console (F12 → Console tab) for any error messages.
+
+The key functions that should work are:
+
+· handlePreviewCSVImport() - when you click "Preview CSV Import"
+· handleConfirmCSVImport() - when you click "Confirm Import" after preview
+· hideCSVPreview() - when you click "Cancel"
+
+Let me know if you're still having issues after removing the duplicate functions!
