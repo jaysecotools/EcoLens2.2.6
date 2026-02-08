@@ -1603,6 +1603,12 @@
     body.dark-mode legend {
         color: var(--text-primary);
     }
+
+/* Fix photo remove button z-index */
+.photo-remove {
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+}
 </style>
 </head>
 <body>
@@ -3953,24 +3959,14 @@ const EcoLens = {
             });
         }
 
-        // Photo handling - COMPLETE FIX: Proper event delegation and handlers
-        const photoContainer = document.querySelector('.photo-container');
-        if (photoContainer) {
-            photoContainer.addEventListener('click', (e) => {
-                const removeBtn = e.target.closest('#photo-remove');
-                if (removeBtn) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.removePhoto();
-                    return;
-                }
-                
-                // Also handle clicks on the remove button's icon
-                if (e.target.closest('.fa-times') || e.target.id === 'photo-remove') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.removePhoto();
-                }
+        // Photo handling - SIMPLIFIED FIX
+        const photoRemoveBtn = document.getElementById('photo-remove');
+        if (photoRemoveBtn) {
+            // Add click event to the remove button
+            photoRemoveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.removePhoto();
             });
         }
 
@@ -3982,7 +3978,7 @@ const EcoLens = {
             });
         }
 
-        // File upload handler - CRITICAL FIX: Only declare once
+        // File upload handler
         const photoUpload = document.getElementById('photo-upload');
         if (photoUpload) {
             photoUpload.addEventListener('change', (e) => {
@@ -4537,15 +4533,16 @@ const EcoLens = {
                     previewBtn.disabled = true;
                 }
 
-                const jsonData = JSON.parse(e.target.result);
-                let observations = jsonData;
-                
-                if (jsonData.observations && Array.isArray(jsonData.observations)) {
-                    observations = jsonData.observations;
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(e.target.result);
+                } catch (parseError) {
+                    throw new Error(`Invalid JSON format: ${parseError.message}`);
                 }
-                
-                const validationResult = this.validateJSONData(observations);
+
+                const validationResult = this.validateJSONData(jsonData);
                 this.jsonPreviewData = validationResult;
+                
                 this.showJSONPreview(validationResult);
                 
                 if (previewBtn) {
@@ -4568,7 +4565,6 @@ const EcoLens = {
                     previewBtn.disabled = false;
                 }
                 this.showStatus(`Validation failed: ${error.message}`, 'error', 'export');
-                console.error('Validation error:', error);
             }
         };
 
@@ -5148,10 +5144,17 @@ const EcoLens = {
         });
 
         if (this.saveObservation(observation)) {
-            this.resetForm();
-            this.showStatus(`Observation ${observation.id} recorded successfully!`, 'success');
+            // Show success with observation ID
+            this.showStatus(`✓ Observation ${observation.id} saved successfully!`, 'success');
             
-            setTimeout(() => this.switchTab('logbook'), 1500);
+            // Reset form after a brief delay
+            setTimeout(() => {
+                this.resetForm();
+                // Optional: Switch to logbook tab
+                // this.switchTab('logbook');
+            }, 1500);
+        } else {
+            this.showStatus('Failed to save observation. Please check your data.', 'error');
         }
     },
 
@@ -5213,68 +5216,40 @@ const EcoLens = {
         if (observerName) observerName.focus();
     },
 
-    // Remove photo - FIXED: Proper cleanup
+    // Remove photo - SIMPLIFIED
     removePhoto() {
-        console.log('removePhoto() called!');
+        console.log('Attempting to remove photo');
         
-        // Clear the current photo data
+        // Clear photo data
         this.currentPhoto = null;
         
-        // Get DOM elements
-        const photoPreview = document.getElementById('photo-preview');
-        const photoUpload = document.getElementById('photo-upload');
+        // Hide preview
+        const preview = document.getElementById('photo-preview');
+        if (preview) {
+            preview.style.display = 'none';
+            preview.src = '';
+        }
+        
+        // Hide remove button
+        const removeBtn = document.getElementById('photo-remove');
+        if (removeBtn) {
+            removeBtn.style.display = 'none';
+        }
+        
+        // Hide info
         const photoInfo = document.getElementById('photo-info');
-        const photoRemove = document.getElementById('photo-remove');
-        
-        // Reset preview
-        if (photoPreview) {
-            photoPreview.style.display = 'none';
-            photoPreview.src = '';
-            photoPreview.alt = '';
-            photoPreview.removeAttribute('src'); // Force browser to release memory
-        }
-        
-        // Reset upload input
-        if (photoUpload) {
-            photoUpload.value = '';
-        }
-        
-        // Hide info and remove button
         if (photoInfo) {
             photoInfo.style.display = 'none';
         }
-        if (photoRemove) {
-            photoRemove.style.display = 'none';
-        }
         
-        // Clear photo info text
-        const photoSize = document.getElementById('photo-size');
-        const photoResolution = document.getElementById('photo-resolution');
-        if (photoSize) {
-            photoSize.innerHTML = '<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: --';
+        // Reset file input
+        const fileInput = document.getElementById('photo-upload');
+        if (fileInput) {
+            fileInput.value = '';
         }
-        if (photoResolution) {
-            photoResolution.innerHTML = '<i class="fas fa-expand-alt" aria-hidden="true"></i> Resolution: --';
-        }
-        
-        // Clean up memory
-        this.cleanupCanvasElements();
-        
-        // Force garbage collection if possible
-        if (window.gc) {
-            window.gc();
-        }
-        
-        console.log('Photo removed successfully');
         
         // Show feedback
         this.showStatus('Photo removed', 'success');
-        
-        // Return focus to the capture button
-        const captureBtn = document.getElementById('capture-photo');
-        if (captureBtn) {
-            setTimeout(() => captureBtn.focus(), 100);
-        }
     },
 
     // Toggle map visibility
@@ -5608,9 +5583,25 @@ const EcoLens = {
         const reader = new FileReader();
         
         reader.onload = (e) => {
-            this.compressImage(e.target.result, (compressedData) => {
+            const dataUrl = e.target.result;
+            
+            // Validate data URL format
+            if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+                this.showStatus('Invalid image format', 'error');
+                if (captureBtn) {
+                    captureBtn.innerHTML = originalText;
+                    captureBtn.disabled = false;
+                }
+                return;
+            }
+            
+            this.compressImage(dataUrl, (compressedData) => {
                 if (!compressedData) {
                     this.showStatus('Failed to process image', 'error');
+                    if (captureBtn) {
+                        captureBtn.innerHTML = originalText;
+                        captureBtn.disabled = false;
+                    }
                     return;
                 }
                 
@@ -5629,6 +5620,8 @@ const EcoLens = {
                     preview.src = compressedData;
                     preview.style.display = 'block';
                     preview.alt = 'Observation photo preview';
+                    
+                    // Wait for image to fully load before showing success
                     preview.onload = () => {
                         // Update photo info after image loads
                         const photoInfo = document.getElementById('photo-info');
@@ -5655,6 +5648,7 @@ const EcoLens = {
                             captureBtn.disabled = false;
                         }
                         
+                        // SHOW SUCCESS MESSAGE ONLY HERE - AFTER EVERYTHING IS LOADED
                         this.showStatus('Photo added successfully', 'success');
                     };
                     
@@ -5693,50 +5687,106 @@ const EcoLens = {
     compressImage(dataUrl, callback, maxWidth = 1920, maxHeight = 1080, quality = 0.7) {
         const img = new Image();
         
+        // Set crossOrigin to anonymous to avoid CORS issues
+        img.crossOrigin = 'anonymous';
+        
         img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
+            try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
 
-            if (width > maxWidth || height > maxHeight) {
-                const ratio = Math.min(maxWidth / width, maxHeight / height);
-                width *= ratio;
-                height *= ratio;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext('2d');
-            
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, width, height);
-            
-            ctx.drawImage(img, 0, 0, width, height);
-
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-            
-            img.src = '';
-            canvas.width = 0;
-            canvas.height = 0;
-            
-            this.canvasCleanupList.push(canvas);
-            
-            if (this.canvasCleanupList.length > 10) {
-                const oldCanvas = this.canvasCleanupList.shift();
-                if (oldCanvas) {
-                    oldCanvas.width = 0;
-                    oldCanvas.height = 0;
+                // Calculate new dimensions while maintaining aspect ratio
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width = Math.floor(width * ratio);
+                    height = Math.floor(height * ratio);
                 }
+
+                // Validate dimensions
+                if (width <= 0 || height <= 0) {
+                    console.error('Invalid image dimensions after scaling');
+                    callback(dataUrl); // Return original if scaling fails
+                    return;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                
+                // Draw white background first
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, width, height);
+                
+                // Draw the image
+                ctx.drawImage(img, 0, 0, width, height);
+
+                try {
+                    // Try JPEG compression first, fall back to PNG
+                    let compressedDataUrl;
+                    try {
+                        compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                    } catch (e) {
+                        console.warn('JPEG compression failed, using PNG');
+                        compressedDataUrl = canvas.toDataURL('image/png');
+                    }
+                    
+                    // Clean up
+                    img.src = '';
+                    canvas.width = 0;
+                    canvas.height = 0;
+                    
+                    // Add to cleanup list
+                    this.canvasCleanupList.push(canvas);
+                    
+                    // Limit cleanup list size
+                    if (this.canvasCleanupList.length > 10) {
+                        const oldCanvas = this.canvasCleanupList.shift();
+                        if (oldCanvas) {
+                            oldCanvas.width = 0;
+                            canvas.height = 0;
+                        }
+                    }
+                    
+                    callback(compressedDataUrl);
+                    
+                } catch (canvasError) {
+                    console.error('Canvas compression error:', canvasError);
+                    callback(dataUrl); // Return original on error
+                }
+                
+            } catch (error) {
+                console.error('Error in image compression:', error);
+                callback(dataUrl); // Return original on error
             }
-            
-            callback(compressedDataUrl);
         };
         
         img.onerror = () => {
-            console.error('Error loading image for compression');
+            console.error('Error loading image for compression, using original');
             img.src = '';
-            callback(dataUrl);
+            callback(dataUrl); // Return original data URL
+        };
+        
+        // Add a timeout to prevent hanging
+        const timeoutId = setTimeout(() => {
+            if (img.src) {
+                console.warn('Image loading timeout, using original');
+                img.src = '';
+                callback(dataUrl);
+            }
+        }, 5000);
+        
+        const originalOnLoad = img.onload;
+        img.onload = function() {
+            clearTimeout(timeoutId);
+            if (originalOnLoad) originalOnLoad.call(this);
+        };
+        
+        const originalOnError = img.onerror;
+        img.onerror = function() {
+            clearTimeout(timeoutId);
+            if (originalOnError) originalOnError.call(this);
         };
         
         img.src = dataUrl;
@@ -5959,6 +6009,19 @@ const EcoLens = {
                 });
             }
         });
+
+        // Clear current photo first
+        this.currentPhoto = null;
+        const photoPreview = document.getElementById('photo-preview');
+        const photoRemove = document.getElementById('photo-remove');
+        const photoInfo = document.getElementById('photo-info');
+        
+        if (photoPreview) {
+            photoPreview.style.display = 'none';
+            photoPreview.src = '';
+        }
+        if (photoRemove) photoRemove.style.display = 'none';
+        if (photoInfo) photoInfo.style.display = 'none';
 
         if (observation.photo) {
             this.currentPhoto = observation.photo;
