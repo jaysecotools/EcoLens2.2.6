@@ -2272,7 +2272,6 @@ updateCSVValidationStats(validationResult) {
     statsDiv.style.display = 'flex';
 },
 
-    // Show CSV preview
     // Show CSV preview - COMPLETE FIXED VERSION
 showCSVPreview(validationResult) {
     const previewSection = document.getElementById('csv-preview-section');
@@ -2356,49 +2355,7 @@ showCSVPreview(validationResult) {
         miniMapContainer.style.display = 'none';
     }
     
-// Show mini map for coordinate preview
-showMiniMap(coordinates) {
-    const container = document.getElementById('mini-map-container');
-    if (!container || coordinates.length === 0) return;
-    
-    // Clear existing map
-    container.innerHTML = '';
-    
-    if (typeof L === 'undefined') {
-        console.error('Leaflet not available');
-        return;
-    }
-    
-    try {
-        // Create map
-        const map = L.map(container).setView([coordinates[0].lat, coordinates[0].lng], 5);
-        
-        // Add tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-        
-        // Add markers
-        coordinates.forEach(coord => {
-            L.marker([coord.lat, coord.lng]).addTo(map)
-                .bindPopup(`Lat: ${coord.lat.toFixed(4)}, Lng: ${coord.lng.toFixed(4)}`);
-        });
-        
-        // Fit bounds if multiple coordinates
-        if (coordinates.length > 1) {
-            const bounds = L.latLngBounds(coordinates.map(c => [c.lat, c.lng]));
-            map.fitBounds(bounds);
-        }
-        
-        this.miniMap = map;
-        
-    } catch (error) {
-        console.error('Error creating mini map:', error);
-        container.innerHTML = '<div class="status-message status-error">Map preview unavailable</div>';
-    }
-},
-
-    // Build preview table (limit to first 10 rows)
+// Build preview table (limit to first 10 rows) - FIXED
     const maxPreviewRows = 10;
     const rowsToShow = validationResult.rows.slice(0, maxPreviewRows);
     
@@ -2862,35 +2819,6 @@ showMiniMap(coordinates) {
         if (csvNote) csvNote.style.display = format === 'csv' ? 'block' : 'none';
         if (jsonNote) jsonNote.style.display = format === 'json' ? 'block' : 'none';
         if (pdfNote) pdfNote.style.display = format === 'pdf' ? 'block' : 'none';
-    },
-
-    // Hide CSV preview
-    hideCSVPreview() {
-        const previewSection = document.getElementById('csv-preview-section');
-        const statsDiv = document.getElementById('validation-stats');
-        const csvImport = document.getElementById('csv-import');
-        
-        if (previewSection) previewSection.style.display = 'none';
-        if (statsDiv) statsDiv.style.display = 'none';
-        if (csvImport) csvImport.value = '';
-        this.csvPreviewData = null;
-        
-        const progressUI = document.getElementById('csv-import-progress');
-        if (progressUI) progressUI.style.display = 'none';
-        
-        if (this.miniMap) {
-            try {
-                this.miniMap.remove();
-            } catch (e) {
-                console.warn('Error removing mini map:', e);
-            }
-            this.miniMap = null;
-        }
-        const miniMapContainer = document.getElementById('mini-map-container');
-        if (miniMapContainer) {
-            miniMapContainer.innerHTML = '';
-            miniMapContainer.style.display = 'none';
-        }
     },
 
     // Hide JSON preview
@@ -4578,7 +4506,7 @@ updatePhotoPreview(imageData, captureBtn, originalText) {
             
             img.src = photoData;
         });
-    }, // <-- THIS CLOSING BRACE AND COMMA WERE MISSING
+    },
 
     // Migrate existing observations to use compression
     async migrateExistingObservations() {
