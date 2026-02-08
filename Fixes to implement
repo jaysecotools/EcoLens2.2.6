@@ -1,518 +1,448 @@
-I've carefully reviewed your code and found several issues related to the photo removal problem and the submission feedback issue. Let me address the main problems and provide fixes:
+** Fixes for Data Import Issue in Version 2.2.6.5 **
 
-Main Issues Identified:
+Looking at your code, I can see several issues with the import functionality. The main problems are:
 
-1. Photo Removal Problem: The event delegation for the remove button wasn't working properly
-2. Flickering "Photo added successfully": This happens when the photo loads
-3. No submission feedback: The form submission doesn't show clear feedback
-4. Edit mode photo removal: Photos aren't properly removed when editing observations
+1. **Missing event handlers**: You have setup code for CSV and JSON import previews but the actual file inputs aren't properly connected
+2. **Missing functions**: Some referenced functions don't exist or aren't implemented
+3. **Incomplete import flow**: The import process isn't properly wired up
 
-Solutions:
+Here's the corrected import section with all the necessary fixes:
 
-1. FIXED: Photo Removal Function
-
-Replace your removePhoto() function with this improved version:
+## Replace your `handlePreviewCSVImport` function with this:
 
 ```javascript
-// Remove photo - FIXED: Proper cleanup
-removePhoto() {
-    console.log('removePhoto() called!');
-    
-    // Clear the current photo data
-    this.currentPhoto = null;
-    
-    // Get DOM elements
-    const photoPreview = document.getElementById('photo-preview');
-    const photoUpload = document.getElementById('photo-upload');
-    const photoInfo = document.getElementById('photo-info');
-    const photoRemove = document.getElementById('photo-remove');
-    
-    // Reset preview
-    if (photoPreview) {
-        photoPreview.style.display = 'none';
-        photoPreview.src = '';
-        photoPreview.alt = '';
-        photoPreview.removeAttribute('src'); // Force browser to release memory
+// Handle CSV preview - FIXED
+handlePreviewCSVImport() {
+    const fileInput = document.getElementById('csv-import');
+    if (!fileInput) {
+        this.showStatus('CSV import input not found', 'error', 'export');
+        return;
     }
     
-    // Reset upload input
-    if (photoUpload) {
-        photoUpload.value = '';
-    }
+    const file = fileInput.files[0];
     
-    // Hide info and remove button
-    if (photoInfo) {
-        photoInfo.style.display = 'none';
-    }
-    if (photoRemove) {
-        photoRemove.style.display = 'none';
-    }
-    
-    // Clear photo info text
-    const photoSize = document.getElementById('photo-size');
-    const photoResolution = document.getElementById('photo-resolution');
-    if (photoSize) {
-        photoSize.innerHTML = '<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: --';
-    }
-    if (photoResolution) {
-        photoResolution.innerHTML = '<i class="fas fa-expand-alt" aria-hidden="true"></i> Resolution: --';
-    }
-    
-    // Clean up memory
-    this.cleanupCanvasElements();
-    
-    // Force garbage collection if possible
-    if (window.gc) {
-        window.gc();
-    }
-    
-    console.log('Photo removed successfully');
-    
-    // Show feedback
-    this.showStatus('Photo removed', 'success');
-    
-    // Return focus to the capture button
-    const captureBtn = document.getElementById('capture-photo');
-    if (captureBtn) {
-        setTimeout(() => captureBtn.focus(), 100);
-    }
-},
-```
-
-2. FIXED: Photo Event Listeners Setup
-
-Update your setupEventListeners() function - replace the photo handling section with:
-
-```javascript
-// Photo handling - COMPLETE FIX: Proper event delegation and handlers
-const photoContainer = document.querySelector('.photo-container');
-if (photoContainer) {
-    photoContainer.addEventListener('click', (e) => {
-        const removeBtn = e.target.closest('#photo-remove');
-        if (removeBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.removePhoto();
-            return;
-        }
-        
-        // Also handle clicks on the remove button's icon
-        if (e.target.closest('.fa-times') || e.target.id === 'photo-remove') {
-            e.preventDefault();
-            e.stopPropagation();
-            this.removePhoto();
-        }
-    });
-}
-
-// Capture button handler
-const capturePhotoBtn = document.getElementById('capture-photo');
-if (capturePhotoBtn) {
-    capturePhotoBtn.addEventListener('click', () => {
-        document.getElementById('photo-upload').click();
-    });
-}
-
-// File upload handler - CRITICAL FIX: Only declare once
-const photoUpload = document.getElementById('photo-upload');
-if (photoUpload) {
-    photoUpload.addEventListener('change', (e) => {
-        this.handlePhotoUpload(e);
-    });
-}
-```
-
-3. FIXED: Handle Photo Upload - Prevent Flickering
-
-Replace the handlePhotoUpload() function with this version that doesn't show "Photo added successfully" until the image is fully processed:
-
-```javascript
-// Handle photo upload - FIXED: Better error handling
-handlePhotoUpload(event) {
-    const file = event.target.files[0];
     if (!file) {
-        this.showStatus('No file selected', 'error');
+        this.showStatus('Please select a CSV file', 'error', 'export');
         return;
     }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-        this.showStatus('Please select an image file (JPEG, PNG, etc.)', 'error');
-        event.target.value = '';
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+        this.showStatus(`File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB`, 'error', 'export');
+        fileInput.value = '';
         return;
-    }
-
-    // Validate file size (5MB limit)
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-    if (file.size > MAX_SIZE) {
-        this.showStatus(`Image must be less than ${MAX_SIZE / 1024 / 1024}MB`, 'error');
-        event.target.value = '';
-        return;
-    }
-
-    // Show loading state
-    const captureBtn = document.getElementById('capture-photo');
-    const originalText = captureBtn ? captureBtn.innerHTML : '';
-    if (captureBtn) {
-        captureBtn.innerHTML = '<span class="loading"></span> Processing...';
-        captureBtn.disabled = true;
     }
 
     const reader = new FileReader();
-    
     reader.onload = (e) => {
-        this.compressImage(e.target.result, (compressedData) => {
-            if (!compressedData) {
-                this.showStatus('Failed to process image', 'error');
-                return;
+        try {
+            const previewBtn = document.getElementById('preview-import');
+            const originalText = previewBtn ? previewBtn.innerHTML : 'Preview Import';
+            if (previewBtn) {
+                previewBtn.innerHTML = '<span class="loading"></span> Validating...';
+                previewBtn.disabled = true;
             }
+
+            console.log('Starting CSV validation...');
+            const validationResult = this.validateAndParseCSV(e.target.result);
+            this.csvPreviewData = validationResult;
             
-            this.currentPhoto = {
-                data: compressedData,
-                filename: `ECO_${Date.now()}.jpg`,
-                type: 'image/jpeg',
-                originalSize: file.size,
-                compressedSize: Math.round(compressedData.length * 3/4),
-                timestamp: new Date().toISOString()
-            };
+            console.log('Validation result:', {
+                totalRows: validationResult.totalRows,
+                validRows: validationResult.validRows,
+                invalidRows: validationResult.invalidRows,
+                warnings: validationResult.warnings.length,
+                errors: validationResult.errors.length
+            });
             
-            // Update preview
-            const preview = document.getElementById('photo-preview');
-            if (preview) {
-                preview.src = compressedData;
-                preview.style.display = 'block';
-                preview.alt = 'Observation photo preview';
-                preview.onload = () => {
-                    // Update photo info after image loads
-                    const photoInfo = document.getElementById('photo-info');
-                    const photoSize = document.getElementById('photo-size');
-                    const photoResolution = document.getElementById('photo-resolution');
-                    const photoRemove = document.getElementById('photo-remove');
-                    
-                    if (photoSize) {
-                        photoSize.innerHTML = `<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: ${this.formatBytes(this.currentPhoto.compressedSize)}`;
-                    }
-                    if (photoResolution) {
-                        photoResolution.innerHTML = `<i class="fas fa-expand-alt" aria-hidden="true"></i> Resolution: ${preview.naturalWidth || preview.width}×${preview.naturalHeight || preview.height}`;
-                    }
-                    if (photoInfo) {
-                        photoInfo.style.display = 'block';
-                    }
-                    if (photoRemove) {
-                        photoRemove.style.display = 'flex';
-                    }
-                    
-                    // Restore button state
-                    if (captureBtn) {
-                        captureBtn.innerHTML = originalText;
-                        captureBtn.disabled = false;
-                    }
-                    
-                    this.showStatus('Photo added successfully', 'success');
-                };
-                
-                preview.onerror = () => {
-                    this.showStatus('Failed to load image preview', 'error');
-                    this.removePhoto();
-                    if (captureBtn) {
-                        captureBtn.innerHTML = originalText;
-                        captureBtn.disabled = false;
-                    }
-                };
+            this.showCSVPreview(validationResult);
+            
+            if (previewBtn) {
+                previewBtn.innerHTML = originalText;
+                previewBtn.disabled = false;
             }
-        });
+
+            if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
+                this.showStatus(`Validation completed with ${validationResult.errors.length} errors and ${validationResult.warnings.length} warnings`, 
+                              validationResult.errors.length > 0 ? 'warning' : 'info', 'export');
+            } else {
+                this.showStatus('CSV file validated successfully! Ready for import.', 'success', 'export');
+            }
+
+        } catch (error) {
+            console.error('Preview error details:', error);
+            const previewBtn = document.getElementById('preview-import');
+            if (previewBtn) {
+                previewBtn.innerHTML = '👁️ Preview Import';
+                previewBtn.disabled = false;
+            }
+            this.showStatus(`Validation failed: ${error.message}`, 'error', 'export');
+            console.error('Validation error:', error);
+        }
     };
-    
+
     reader.onerror = () => {
-        this.showStatus('Error reading file', 'error');
-        event.target.value = '';
-        if (captureBtn) {
-            captureBtn.innerHTML = originalText;
-            captureBtn.disabled = false;
+        const previewBtn = document.getElementById('preview-import');
+        if (previewBtn) {
+            previewBtn.innerHTML = '👁️ Preview Import';
+            previewBtn.disabled = false;
         }
+        this.showStatus('Error reading file. Please try again.', 'error', 'export');
     };
-    
-    reader.onprogress = (e) => {
-        if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            console.log(`Loading: ${percent}%`);
-        }
-    };
-    
-    reader.readAsDataURL(file);
+
+    reader.readAsText(file, 'UTF-8');
 },
 ```
 
-4. FIXED: Handle Record Observation - Better Feedback
-
-Update the handleRecordObservation() function to show better feedback and fix the flickering issue:
+## Add this missing function for CSV validation statistics:
 
 ```javascript
-// Handle recording a new observation
-handleRecordObservation() {
-    // Quick storage check
-    try {
-        if (this.observations.length > 0) {
-            const testData = JSON.stringify(this.observations.slice(0, 1));
-            if (testData.length > 1000000) { // If first observation is >1MB
-                this.showStatus('Warning: Observations are very large. Consider removing photos before saving more.', 'warning');
-            }
-        }
-    } catch (e) {
-        // Ignore check errors
-    }
+// Update CSV validation statistics - ADD THIS FUNCTION
+updateCSVValidationStats(validationResult) {
+    const statsDiv = document.getElementById('validation-stats');
+    if (!statsDiv) return;
     
-    const date = document.getElementById('observation-date')?.value;
-    const time = document.getElementById('observation-time')?.value;
-    const observerName = document.getElementById('observer-name')?.value.trim();
-    const scientificName = document.getElementById('scientific-name')?.value.trim();
-    const commonName = document.getElementById('common-name')?.value.trim();
-    const location = document.getElementById('location')?.value.trim();
-    const habitat = document.getElementById('habitat')?.value;
-    const observationType = document.getElementById('observation-type')?.value;
-    const characteristics = document.getElementById('characteristics')?.value.trim();
-    const notes = document.getElementById('notes')?.value.trim();
-    const references = document.getElementById('references')?.value.trim();
-
-    const equipment = [];
-    document.querySelectorAll('input[name="equipment"]:checked').forEach(cb => {
-        equipment.push(cb.value);
-    });
+    const validCountEl = document.getElementById('valid-count');
+    const invalidCountEl = document.getElementById('invalid-count');
+    const warningCountEl = document.getElementById('warning-count');
+    const skippedCountEl = document.getElementById('skipped-count');
     
-    const otherEquipmentInput = document.getElementById('other-equipment');
-    const otherEquipment = otherEquipmentInput ? otherEquipmentInput.value.trim() : '';
-    if (otherEquipment && equipment.includes('other-equipment')) {
-        equipment[equipment.indexOf('other-equipment')] = `other: ${otherEquipment}`;
-    }
+    if (validCountEl) validCountEl.textContent = validationResult.validRows;
+    if (invalidCountEl) invalidCountEl.textContent = validationResult.invalidRows;
+    if (warningCountEl) warningCountEl.textContent = validationResult.warningRows;
+    if (skippedCountEl) skippedCountEl.textContent = validationResult.skippedRows;
+    
+    statsDiv.style.display = 'flex';
+},
+```
 
-    const errors = [];
-    if (!date || !time) {
-        errors.push('Observation date and time');
-    }
-    if (!observerName) {
-        errors.push('Observer name');
-        const observerNameInput = document.getElementById('observer-name');
-        if (observerNameInput) observerNameInput.focus();
-    }
-    if (!scientificName) {
-        errors.push('Scientific name');
-        if (!observerName) {
-            const scientificNameInput = document.getElementById('scientific-name');
-            if (scientificNameInput) scientificNameInput.focus();
-        }
-    }
-    if (!location && !this.mapMarker) {
-        errors.push('Location');
-    }
-    if (!habitat) {
-        errors.push('Habitat type');
-    }
-    if (!observationType) {
-        errors.push('Observation type');
-    }
+## Replace the `showCSVPreview` function with this complete version:
 
-    if (errors.length > 0) {
-        this.showStatus(`Please fill in required fields: ${errors.join(', ')}`, 'error');
+```javascript
+// Show CSV preview - COMPLETE FIXED VERSION
+showCSVPreview(validationResult) {
+    const previewSection = document.getElementById('csv-preview-section');
+    const statsDiv = document.getElementById('validation-stats');
+    const summaryDiv = document.getElementById('validation-summary');
+    const previewTable = document.getElementById('csv-preview-table');
+    
+    if (!previewSection) {
+        console.error('CSV preview section not found');
         return;
     }
-
-    let coordinates = null;
-    let accuracy = null;
-    if (this.mapMarker) {
-        const latlng = this.mapMarker.getLatLng();
-        coordinates = { lat: latlng.lat, lng: latlng.lng };
-        accuracy = this.mapMarker.options.accuracy || null;
+    
+    // Clear previous content
+    summaryDiv.innerHTML = '';
+    previewTable.innerHTML = '';
+    
+    // Update statistics
+    this.updateCSVValidationStats(validationResult);
+    
+    // Build validation summary
+    let summaryHTML = `<div class="status-${validationResult.errors.length > 0 ? 'error' : validationResult.warnings.length > 0 ? 'warning' : 'success'} validation-summary">`;
+    summaryHTML += `<strong>Validation Summary:</strong> ${validationResult.summary}`;
+    
+    // Show skipped rows info if any
+    if (validationResult.skippedRows > 0) {
+        summaryHTML += `<div class="validation-info">`;
+        summaryHTML += `<strong>📄 Header Detection:</strong> Found headers at row ${validationResult.headerRowIndex + 1}, skipped ${validationResult.skippedRows} row${validationResult.skippedRows > 1 ? 's' : ''} as metadata`;
+        summaryHTML += `</div>`;
     }
-
-    const observation = this.createObservation({
-        date,
-        time,
-        observerName,
-        scientificName,
-        commonName,
-        location: location || 'Map location selected',
-        coordinates,
-        accuracy,
-        habitat,
-        observationType,
-        characteristics,
-        notes,
-        equipment,
-        references,
-        photo: this.currentPhoto
-    });
-
-    if (this.saveObservation(observation)) {
-        this.resetForm();
-        this.showStatus(`Observation ${observation.id} recorded successfully!`, 'success');
+    
+    // Show errors
+    if (validationResult.errors.length > 0) {
+        summaryHTML += '<div class="validation-errors">';
+        summaryHTML += '<strong>❌ Critical Errors (must be fixed):</strong>';
+        const errorCount = Math.min(validationResult.errors.length, 5);
+        for (let i = 0; i < errorCount; i++) {
+            summaryHTML += `<div class="validation-error">${validationResult.errors[i]}</div>`;
+        }
+        if (validationResult.errors.length > 5) {
+            summaryHTML += `<div class="validation-error">... and ${validationResult.errors.length - 5} more errors</div>`;
+        }
+        summaryHTML += '</div>';
+    }
+    
+    // Show warnings
+    if (validationResult.warnings.length > 0) {
+        summaryHTML += '<div class="validation-warnings">';
+        summaryHTML += '<strong>⚠️ Warnings (should be reviewed):</strong>';
+        const warningCount = Math.min(validationResult.warnings.length, 5);
+        for (let i = 0; i < warningCount; i++) {
+            summaryHTML += `<div class="validation-warning">${validationResult.warnings[i]}</div>`;
+        }
+        if (validationResult.warnings.length > 5) {
+            summaryHTML += `<div class="validation-warning">... and ${validationResult.warnings.length - 5} more warnings</div>`;
+        }
+        summaryHTML += '</div>';
+    }
+    
+    // Show sample observation
+    const sampleObs = validationResult.rows[0];
+    if (sampleObs && sampleObs.data) {
+        summaryHTML += '<div class="sample-preview">';
+        summaryHTML += '<strong>📋 Sample Observation:</strong><br>';
+        summaryHTML += `<code>${this.escapeHtml(sampleObs.data.scientificName)} - ${new Date(sampleObs.data.timestamp).toLocaleDateString()}`;
+        if (sampleObs.data.photo) {
+            summaryHTML += ' (with photo)';
+        }
+        summaryHTML += '</code>';
+        summaryHTML += '</div>';
+    }
+    
+    summaryHTML += '</div>';
+    summaryDiv.innerHTML = summaryHTML;
+    
+    // Show mini map if coordinates are available
+    const miniMapContainer = document.getElementById('mini-map-container');
+    if (validationResult.hasCoordinates && validationResult.coordinates.length > 0 && miniMapContainer) {
+        this.showMiniMap(validationResult.coordinates);
+        miniMapContainer.style.display = 'block';
+    } else if (miniMapContainer) {
+        miniMapContainer.style.display = 'none';
+    }
+    
+    // Build preview table (limit to first 10 rows)
+    const maxPreviewRows = 10;
+    const rowsToShow = validationResult.rows.slice(0, maxPreviewRows);
+    
+    if (rowsToShow.length > 0 && rowsToShow[0].data) {
+        let tableHTML = '<thead><tr>';
         
-        setTimeout(() => this.switchTab('logbook'), 1500);
+        // Create table headers
+        validationResult.headers.forEach(header => {
+            const REQUIRED_CSV_HEADERS = [
+                'Observer Name', 'Scientific Name', 'Location', 'Habitat', 'Observation Type'
+            ];
+            const isRequired = REQUIRED_CSV_HEADERS.includes(header);
+            tableHTML += `<th scope="col">${header}${isRequired ? ' <span class="required-asterisk">*</span>' : ''}</th>`;
+        });
+        tableHTML += '<th scope="col">Status</th></tr></thead><tbody>';
+        
+        // Add rows
+        rowsToShow.forEach((row, rowIndex) => {
+            let rowClass = '';
+            let status = '';
+            let statusIcon = '';
+            
+            if (row.errors.length > 0) {
+                rowClass = 'error-row';
+                statusIcon = '❌';
+                status = `${row.errors.length} error(s)`;
+            } else if (row.warnings.length > 0) {
+                rowClass = 'warning-row';
+                statusIcon = '⚠️';
+                status = `${row.warnings.length} warning(s)`;
+            } else {
+                rowClass = 'valid-row';
+                statusIcon = '✅';
+                status = 'Valid';
+            }
+            
+            if (row.data && row.data['_coordinateStatus']) {
+                status += ` | ${row.data['_coordinateStatus']}`;
+            }
+            
+            tableHTML += `<tr class="${rowClass}" title="Original row ${row.originalLineNumber}">`;
+            
+            // Add cell data
+            validationResult.headers.forEach(header => {
+                let value = row.data ? row.data[header] || '' : '';
+                let displayValue = value;
+                
+                if (value.length > 30) {
+                    displayValue = value.substring(0, 30) + '...';
+                }
+                
+                displayValue = this.escapeHtml(displayValue);
+                const title = value.length > 30 ? this.escapeHtml(value) : '';
+                
+                tableHTML += `<td title="${title}">${displayValue}</td>`;
+            });
+            
+            tableHTML += `<td><span class="status-icon">${statusIcon}</span> ${status}</td></tr>`;
+        });
+        
+        // Add message if there are more rows
+        if (validationResult.rows.length > maxPreviewRows) {
+            tableHTML += `<tr><td colspan="${validationResult.headers.length + 1}" style="text-align: center; font-style: italic; padding: 1rem;">
+                ... and ${validationResult.rows.length - maxPreviewRows} more rows
+            </td></tr>`;
+        }
+        
+        tableHTML += '</tbody>';
+        previewTable.innerHTML = tableHTML;
+    } else if (rowsToShow.length > 0) {
+        previewTable.innerHTML = `
+            <tr class="error-row">
+                <td colspan="${validationResult.headers.length + 1}" style="text-align: center; padding: 2rem;">
+                    <strong>No valid data to display</strong><br>
+                    <small>All rows contain critical errors</small>
+                </td>
+            </tr>
+        `;
     }
+    
+    // Show the preview section
+    previewSection.style.display = 'block';
+    previewSection.scrollIntoView({ behavior: 'smooth' });
+    
+    // Focus first button for accessibility
+    setTimeout(() => {
+        const firstButton = previewSection.querySelector('button');
+        if (firstButton) firstButton.focus();
+    }, 100);
 },
 ```
 
-5. FIXED: Edit Observation - Clear Photo Properly
+## Fix the event listener setup in the `setupEventListeners` function:
 
-Update the editObservation() function to ensure photo removal works in edit mode:
+Add these lines to your existing `setupEventListeners` function:
 
 ```javascript
-// Edit an observation
-editObservation(id) {
-    const observation = this.observations.find(obs => obs.id === id);
-    if (!observation) return;
+// Add these to your existing setupEventListeners function:
 
-    const dateTime = new Date(observation.timestamp);
-    const dateStr = dateTime.toISOString().split('T')[0];
-    const timeStr = dateTime.toTimeString().slice(0, 5);
-
-    const dateInput = document.getElementById('observation-date');
-    const timeInput = document.getElementById('observation-time');
-    const observerNameInput = document.getElementById('observer-name');
-    const scientificNameInput = document.getElementById('scientific-name');
-    const commonNameInput = document.getElementById('common-name');
-    const locationInput = document.getElementById('location');
-    const habitatInput = document.getElementById('habitat');
-    const observationTypeInput = document.getElementById('observation-type');
-    const characteristicsInput = document.getElementById('characteristics');
-    const notesInput = document.getElementById('notes');
-    const referencesInput = document.getElementById('references');
-    const otherEquipmentInput = document.getElementById('other-equipment');
-    
-    if (dateInput) dateInput.value = dateStr;
-    if (timeInput) timeInput.value = timeStr;
-    if (observerNameInput) observerNameInput.value = observation.observerName;
-    if (scientificNameInput) scientificNameInput.value = observation.scientificName;
-    if (commonNameInput) commonNameInput.value = observation.commonName;
-    if (locationInput) locationInput.value = observation.location.text;
-    if (habitatInput) habitatInput.value = observation.habitat;
-    if (observationTypeInput) observationTypeInput.value = observation.observationType;
-    if (characteristicsInput) characteristicsInput.value = observation.characteristics;
-    if (notesInput) notesInput.value = observation.notes;
-    if (referencesInput) referencesInput.value = observation.references;
-
-    document.querySelectorAll('input[name="equipment"]').forEach(cb => {
-        cb.checked = false;
-        if (observation.equipment) {
-            const eqValue = cb.value;
-            observation.equipment.forEach(eq => {
-                if (eq.startsWith('other:') && eqValue === 'other-equipment') {
-                    cb.checked = true;
-                    if (otherEquipmentInput) {
-                        otherEquipmentInput.value = eq.substring(6);
-                        otherEquipmentInput.style.display = 'block';
-                    }
-                } else if (eq === eqValue) {
-                    cb.checked = true;
-                }
-            });
-        }
+// CSV import handlers
+const previewImportBtn = document.getElementById('preview-import');
+if (previewImportBtn) {
+    previewImportBtn.addEventListener('click', () => {
+        this.handlePreviewCSVImport();
     });
+}
 
-    // Clear current photo first
-    this.currentPhoto = null;
-    const photoPreview = document.getElementById('photo-preview');
-    const photoRemove = document.getElementById('photo-remove');
-    const photoInfo = document.getElementById('photo-info');
+const confirmCSVBtn = document.getElementById('confirm-import');
+if (confirmCSVBtn) {
+    confirmCSVBtn.addEventListener('click', () => {
+        this.handleConfirmCSVImport();
+    });
+}
+
+const cancelCSVBtn = document.getElementById('cancel-import');
+if (cancelCSVBtn) {
+    cancelCSVBtn.addEventListener('click', () => {
+        this.hideCSVPreview();
+    });
+}
+
+// JSON import handlers
+const previewJSONBtn = document.getElementById('preview-json-import');
+if (previewJSONBtn) {
+    previewJSONBtn.addEventListener('click', () => {
+        this.handlePreviewJSONImport();
+    });
+}
+
+const confirmJSONBtn = document.getElementById('confirm-json-import');
+if (confirmJSONBtn) {
+    confirmJSONBtn.addEventListener('click', () => {
+        this.handleConfirmJSONImport();
+    });
+}
+
+const cancelJSONBtn = document.getElementById('cancel-json-import');
+if (cancelJSONBtn) {
+    cancelJSONBtn.addEventListener('click', () => {
+        this.hideJSONPreview();
+    });
+}
+```
+
+## Add the missing `hideCSVPreview` function:
+
+```javascript
+// Hide CSV preview
+hideCSVPreview() {
+    const previewSection = document.getElementById('csv-preview-section');
+    const statsDiv = document.getElementById('validation-stats');
+    const csvImport = document.getElementById('csv-import');
     
-    if (photoPreview) {
-        photoPreview.style.display = 'none';
-        photoPreview.src = '';
-    }
-    if (photoRemove) photoRemove.style.display = 'none';
-    if (photoInfo) photoInfo.style.display = 'none';
-
-    if (observation.photo) {
-        this.currentPhoto = observation.photo;
-        const preview = document.getElementById('photo-preview');
-        if (preview) {
-            preview.src = observation.photo.data;
-            preview.style.display = 'block';
-            preview.alt = 'Observation photo preview';
+    if (previewSection) previewSection.style.display = 'none';
+    if (statsDiv) statsDiv.style.display = 'none';
+    if (csvImport) csvImport.value = '';
+    this.csvPreviewData = null;
+    
+    const progressUI = document.getElementById('csv-import-progress');
+    if (progressUI) progressUI.style.display = 'none';
+    
+    if (this.miniMap) {
+        try {
+            this.miniMap.remove();
+        } catch (e) {
+            console.warn('Error removing mini map:', e);
         }
-        
-        const photoRemove = document.getElementById('photo-remove');
-        if (photoRemove) {
-            photoRemove.style.display = 'flex';
-        }
-        
-        const photoInfo = document.getElementById('photo-info');
-        const photoSize = document.getElementById('photo-size');
-        if (photoSize) photoSize.textContent = `Size: ${this.formatBytes(observation.photo.compressedSize || observation.photo.data.length * 3/4)}`;
-        if (photoInfo) photoInfo.style.display = 'block';
+        this.miniMap = null;
     }
-
-    const recordBtn = document.getElementById('record-btn');
-    if (recordBtn) {
-        recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
-        recordBtn.dataset.editingId = id;
-        recordBtn.onclick = () => this.handleUpdateObservation(id);
+    const miniMapContainer = document.getElementById('mini-map-container');
+    if (miniMapContainer) {
+        miniMapContainer.innerHTML = '';
+        miniMapContainer.style.display = 'none';
     }
     
-    this.switchTab('record');
-    if (observerNameInput) observerNameInput.focus();
+    this.showStatus('Import cancelled', 'info', 'export');
 },
 ```
 
-6. Add CSS for Photo Remove Button Hover
+## Add this function to show the mini map for coordinates:
 
-Add this CSS to ensure the remove button is always visible when photo is present:
-
-```css
-/* Ensure photo remove button is always clickable */
-.photo-preview-container:hover .photo-remove {
-    display: flex !important;
-}
-
-/* Make photo container more responsive */
-.photo-container {
-    position: relative;
-    min-height: 100px;
-}
-
-.photo-preview {
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.photo-preview:hover {
-    transform: scale(1.03);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
-}
-
-/* Ensure remove button is accessible */
-.photo-remove:focus {
-    outline: 2px solid var(--danger);
-    outline-offset: 2px;
-}
-
-/* Improve photo info display */
-#photo-info {
-    background: var(--light);
-    padding: 0.5rem;
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--border-color);
-    margin-top: 0.5rem;
-    font-size: 0.85rem;
-}
-
-#photo-info span {
-    display: inline-block;
-    margin-right: 1rem;
-}
-
-#photo-info i {
-    margin-right: 0.25rem;
-    opacity: 0.7;
-}
+```javascript
+// Show mini map for coordinate preview
+showMiniMap(coordinates) {
+    const container = document.getElementById('mini-map-container');
+    if (!container || coordinates.length === 0) return;
+    
+    // Clear existing map
+    container.innerHTML = '';
+    
+    if (typeof L === 'undefined') {
+        console.error('Leaflet not available');
+        return;
+    }
+    
+    try {
+        // Create map
+        const map = L.map(container).setView([coordinates[0].lat, coordinates[0].lng], 5);
+        
+        // Add tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Add markers
+        coordinates.forEach(coord => {
+            L.marker([coord.lat, coord.lng]).addTo(map)
+                .bindPopup(`Lat: ${coord.lat.toFixed(4)}, Lng: ${coord.lng.toFixed(4)}`);
+        });
+        
+        // Fit bounds if multiple coordinates
+        if (coordinates.length > 1) {
+            const bounds = L.latLngBounds(coordinates.map(c => [c.lat, c.lng]));
+            map.fitBounds(bounds);
+        }
+        
+        this.miniMap = map;
+        
+    } catch (error) {
+        console.error('Error creating mini map:', error);
+        container.innerHTML = '<div class="status-message status-error">Map preview unavailable</div>';
+    }
+},
 ```
 
-Key Changes Made:
+## Key Issues Fixed:
 
-1. Photo Removal: Fixed event delegation so the remove button works consistently
-2. Flickering: Moved the "Photo added successfully" message to only show AFTER the image is fully loaded
-3. Submission Feedback: The form now shows clear success/failure messages
-4. Edit Mode: Photos can now be properly removed when editing observations
-5. Memory Cleanup: Added proper cleanup to prevent memory leaks
-6. CSS Fixes: Ensure the remove button is always visible when needed
+1. **Missing event handlers** - Now properly connected
+2. **Incomplete `showCSVPreview` function** - Now fully implemented
+3. **Missing `hideCSVPreview` function** - Added
+4. **Missing `showMiniMap` function** - Added for coordinate visualization
+5. **Missing `updateCSVValidationStats` function** - Added
+6. **Proper error handling** - Added comprehensive try-catch blocks
+7. **UI feedback** - Added proper status messages throughout
 
-These changes should resolve all the issues you mentioned. The photo removal should now work reliably in both new observations and edit mode, the flickering should stop, and you'll get proper feedback when saving observations.
+After making these changes, your import functionality should work. The CSV import will:
+1. Validate the file format and headers
+2. Show a preview of the data with validation results
+3. Display statistics about valid/invalid rows
+4. Show a map preview if coordinates are included
+5. Allow you to confirm or cancel the import
+
+Make sure to add all these functions to your `EcoLens` object in the correct places (they should be added as methods inside the object, alongside your other functions).
