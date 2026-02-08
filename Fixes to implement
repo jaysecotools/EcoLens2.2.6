@@ -1,0 +1,518 @@
+I've carefully reviewed your code and found several issues related to the photo removal problem and the submission feedback issue. Let me address the main problems and provide fixes:
+
+Main Issues Identified:
+
+1. Photo Removal Problem: The event delegation for the remove button wasn't working properly
+2. Flickering "Photo added successfully": This happens when the photo loads
+3. No submission feedback: The form submission doesn't show clear feedback
+4. Edit mode photo removal: Photos aren't properly removed when editing observations
+
+Solutions:
+
+1. FIXED: Photo Removal Function
+
+Replace your removePhoto() function with this improved version:
+
+```javascript
+// Remove photo - FIXED: Proper cleanup
+removePhoto() {
+    console.log('removePhoto() called!');
+    
+    // Clear the current photo data
+    this.currentPhoto = null;
+    
+    // Get DOM elements
+    const photoPreview = document.getElementById('photo-preview');
+    const photoUpload = document.getElementById('photo-upload');
+    const photoInfo = document.getElementById('photo-info');
+    const photoRemove = document.getElementById('photo-remove');
+    
+    // Reset preview
+    if (photoPreview) {
+        photoPreview.style.display = 'none';
+        photoPreview.src = '';
+        photoPreview.alt = '';
+        photoPreview.removeAttribute('src'); // Force browser to release memory
+    }
+    
+    // Reset upload input
+    if (photoUpload) {
+        photoUpload.value = '';
+    }
+    
+    // Hide info and remove button
+    if (photoInfo) {
+        photoInfo.style.display = 'none';
+    }
+    if (photoRemove) {
+        photoRemove.style.display = 'none';
+    }
+    
+    // Clear photo info text
+    const photoSize = document.getElementById('photo-size');
+    const photoResolution = document.getElementById('photo-resolution');
+    if (photoSize) {
+        photoSize.innerHTML = '<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: --';
+    }
+    if (photoResolution) {
+        photoResolution.innerHTML = '<i class="fas fa-expand-alt" aria-hidden="true"></i> Resolution: --';
+    }
+    
+    // Clean up memory
+    this.cleanupCanvasElements();
+    
+    // Force garbage collection if possible
+    if (window.gc) {
+        window.gc();
+    }
+    
+    console.log('Photo removed successfully');
+    
+    // Show feedback
+    this.showStatus('Photo removed', 'success');
+    
+    // Return focus to the capture button
+    const captureBtn = document.getElementById('capture-photo');
+    if (captureBtn) {
+        setTimeout(() => captureBtn.focus(), 100);
+    }
+},
+```
+
+2. FIXED: Photo Event Listeners Setup
+
+Update your setupEventListeners() function - replace the photo handling section with:
+
+```javascript
+// Photo handling - COMPLETE FIX: Proper event delegation and handlers
+const photoContainer = document.querySelector('.photo-container');
+if (photoContainer) {
+    photoContainer.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('#photo-remove');
+        if (removeBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.removePhoto();
+            return;
+        }
+        
+        // Also handle clicks on the remove button's icon
+        if (e.target.closest('.fa-times') || e.target.id === 'photo-remove') {
+            e.preventDefault();
+            e.stopPropagation();
+            this.removePhoto();
+        }
+    });
+}
+
+// Capture button handler
+const capturePhotoBtn = document.getElementById('capture-photo');
+if (capturePhotoBtn) {
+    capturePhotoBtn.addEventListener('click', () => {
+        document.getElementById('photo-upload').click();
+    });
+}
+
+// File upload handler - CRITICAL FIX: Only declare once
+const photoUpload = document.getElementById('photo-upload');
+if (photoUpload) {
+    photoUpload.addEventListener('change', (e) => {
+        this.handlePhotoUpload(e);
+    });
+}
+```
+
+3. FIXED: Handle Photo Upload - Prevent Flickering
+
+Replace the handlePhotoUpload() function with this version that doesn't show "Photo added successfully" until the image is fully processed:
+
+```javascript
+// Handle photo upload - FIXED: Better error handling
+handlePhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        this.showStatus('No file selected', 'error');
+        return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        this.showStatus('Please select an image file (JPEG, PNG, etc.)', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    // Validate file size (5MB limit)
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+        this.showStatus(`Image must be less than ${MAX_SIZE / 1024 / 1024}MB`, 'error');
+        event.target.value = '';
+        return;
+    }
+
+    // Show loading state
+    const captureBtn = document.getElementById('capture-photo');
+    const originalText = captureBtn ? captureBtn.innerHTML : '';
+    if (captureBtn) {
+        captureBtn.innerHTML = '<span class="loading"></span> Processing...';
+        captureBtn.disabled = true;
+    }
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+        this.compressImage(e.target.result, (compressedData) => {
+            if (!compressedData) {
+                this.showStatus('Failed to process image', 'error');
+                return;
+            }
+            
+            this.currentPhoto = {
+                data: compressedData,
+                filename: `ECO_${Date.now()}.jpg`,
+                type: 'image/jpeg',
+                originalSize: file.size,
+                compressedSize: Math.round(compressedData.length * 3/4),
+                timestamp: new Date().toISOString()
+            };
+            
+            // Update preview
+            const preview = document.getElementById('photo-preview');
+            if (preview) {
+                preview.src = compressedData;
+                preview.style.display = 'block';
+                preview.alt = 'Observation photo preview';
+                preview.onload = () => {
+                    // Update photo info after image loads
+                    const photoInfo = document.getElementById('photo-info');
+                    const photoSize = document.getElementById('photo-size');
+                    const photoResolution = document.getElementById('photo-resolution');
+                    const photoRemove = document.getElementById('photo-remove');
+                    
+                    if (photoSize) {
+                        photoSize.innerHTML = `<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: ${this.formatBytes(this.currentPhoto.compressedSize)}`;
+                    }
+                    if (photoResolution) {
+                        photoResolution.innerHTML = `<i class="fas fa-expand-alt" aria-hidden="true"></i> Resolution: ${preview.naturalWidth || preview.width}×${preview.naturalHeight || preview.height}`;
+                    }
+                    if (photoInfo) {
+                        photoInfo.style.display = 'block';
+                    }
+                    if (photoRemove) {
+                        photoRemove.style.display = 'flex';
+                    }
+                    
+                    // Restore button state
+                    if (captureBtn) {
+                        captureBtn.innerHTML = originalText;
+                        captureBtn.disabled = false;
+                    }
+                    
+                    this.showStatus('Photo added successfully', 'success');
+                };
+                
+                preview.onerror = () => {
+                    this.showStatus('Failed to load image preview', 'error');
+                    this.removePhoto();
+                    if (captureBtn) {
+                        captureBtn.innerHTML = originalText;
+                        captureBtn.disabled = false;
+                    }
+                };
+            }
+        });
+    };
+    
+    reader.onerror = () => {
+        this.showStatus('Error reading file', 'error');
+        event.target.value = '';
+        if (captureBtn) {
+            captureBtn.innerHTML = originalText;
+            captureBtn.disabled = false;
+        }
+    };
+    
+    reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            console.log(`Loading: ${percent}%`);
+        }
+    };
+    
+    reader.readAsDataURL(file);
+},
+```
+
+4. FIXED: Handle Record Observation - Better Feedback
+
+Update the handleRecordObservation() function to show better feedback and fix the flickering issue:
+
+```javascript
+// Handle recording a new observation
+handleRecordObservation() {
+    // Quick storage check
+    try {
+        if (this.observations.length > 0) {
+            const testData = JSON.stringify(this.observations.slice(0, 1));
+            if (testData.length > 1000000) { // If first observation is >1MB
+                this.showStatus('Warning: Observations are very large. Consider removing photos before saving more.', 'warning');
+            }
+        }
+    } catch (e) {
+        // Ignore check errors
+    }
+    
+    const date = document.getElementById('observation-date')?.value;
+    const time = document.getElementById('observation-time')?.value;
+    const observerName = document.getElementById('observer-name')?.value.trim();
+    const scientificName = document.getElementById('scientific-name')?.value.trim();
+    const commonName = document.getElementById('common-name')?.value.trim();
+    const location = document.getElementById('location')?.value.trim();
+    const habitat = document.getElementById('habitat')?.value;
+    const observationType = document.getElementById('observation-type')?.value;
+    const characteristics = document.getElementById('characteristics')?.value.trim();
+    const notes = document.getElementById('notes')?.value.trim();
+    const references = document.getElementById('references')?.value.trim();
+
+    const equipment = [];
+    document.querySelectorAll('input[name="equipment"]:checked').forEach(cb => {
+        equipment.push(cb.value);
+    });
+    
+    const otherEquipmentInput = document.getElementById('other-equipment');
+    const otherEquipment = otherEquipmentInput ? otherEquipmentInput.value.trim() : '';
+    if (otherEquipment && equipment.includes('other-equipment')) {
+        equipment[equipment.indexOf('other-equipment')] = `other: ${otherEquipment}`;
+    }
+
+    const errors = [];
+    if (!date || !time) {
+        errors.push('Observation date and time');
+    }
+    if (!observerName) {
+        errors.push('Observer name');
+        const observerNameInput = document.getElementById('observer-name');
+        if (observerNameInput) observerNameInput.focus();
+    }
+    if (!scientificName) {
+        errors.push('Scientific name');
+        if (!observerName) {
+            const scientificNameInput = document.getElementById('scientific-name');
+            if (scientificNameInput) scientificNameInput.focus();
+        }
+    }
+    if (!location && !this.mapMarker) {
+        errors.push('Location');
+    }
+    if (!habitat) {
+        errors.push('Habitat type');
+    }
+    if (!observationType) {
+        errors.push('Observation type');
+    }
+
+    if (errors.length > 0) {
+        this.showStatus(`Please fill in required fields: ${errors.join(', ')}`, 'error');
+        return;
+    }
+
+    let coordinates = null;
+    let accuracy = null;
+    if (this.mapMarker) {
+        const latlng = this.mapMarker.getLatLng();
+        coordinates = { lat: latlng.lat, lng: latlng.lng };
+        accuracy = this.mapMarker.options.accuracy || null;
+    }
+
+    const observation = this.createObservation({
+        date,
+        time,
+        observerName,
+        scientificName,
+        commonName,
+        location: location || 'Map location selected',
+        coordinates,
+        accuracy,
+        habitat,
+        observationType,
+        characteristics,
+        notes,
+        equipment,
+        references,
+        photo: this.currentPhoto
+    });
+
+    if (this.saveObservation(observation)) {
+        this.resetForm();
+        this.showStatus(`Observation ${observation.id} recorded successfully!`, 'success');
+        
+        setTimeout(() => this.switchTab('logbook'), 1500);
+    }
+},
+```
+
+5. FIXED: Edit Observation - Clear Photo Properly
+
+Update the editObservation() function to ensure photo removal works in edit mode:
+
+```javascript
+// Edit an observation
+editObservation(id) {
+    const observation = this.observations.find(obs => obs.id === id);
+    if (!observation) return;
+
+    const dateTime = new Date(observation.timestamp);
+    const dateStr = dateTime.toISOString().split('T')[0];
+    const timeStr = dateTime.toTimeString().slice(0, 5);
+
+    const dateInput = document.getElementById('observation-date');
+    const timeInput = document.getElementById('observation-time');
+    const observerNameInput = document.getElementById('observer-name');
+    const scientificNameInput = document.getElementById('scientific-name');
+    const commonNameInput = document.getElementById('common-name');
+    const locationInput = document.getElementById('location');
+    const habitatInput = document.getElementById('habitat');
+    const observationTypeInput = document.getElementById('observation-type');
+    const characteristicsInput = document.getElementById('characteristics');
+    const notesInput = document.getElementById('notes');
+    const referencesInput = document.getElementById('references');
+    const otherEquipmentInput = document.getElementById('other-equipment');
+    
+    if (dateInput) dateInput.value = dateStr;
+    if (timeInput) timeInput.value = timeStr;
+    if (observerNameInput) observerNameInput.value = observation.observerName;
+    if (scientificNameInput) scientificNameInput.value = observation.scientificName;
+    if (commonNameInput) commonNameInput.value = observation.commonName;
+    if (locationInput) locationInput.value = observation.location.text;
+    if (habitatInput) habitatInput.value = observation.habitat;
+    if (observationTypeInput) observationTypeInput.value = observation.observationType;
+    if (characteristicsInput) characteristicsInput.value = observation.characteristics;
+    if (notesInput) notesInput.value = observation.notes;
+    if (referencesInput) referencesInput.value = observation.references;
+
+    document.querySelectorAll('input[name="equipment"]').forEach(cb => {
+        cb.checked = false;
+        if (observation.equipment) {
+            const eqValue = cb.value;
+            observation.equipment.forEach(eq => {
+                if (eq.startsWith('other:') && eqValue === 'other-equipment') {
+                    cb.checked = true;
+                    if (otherEquipmentInput) {
+                        otherEquipmentInput.value = eq.substring(6);
+                        otherEquipmentInput.style.display = 'block';
+                    }
+                } else if (eq === eqValue) {
+                    cb.checked = true;
+                }
+            });
+        }
+    });
+
+    // Clear current photo first
+    this.currentPhoto = null;
+    const photoPreview = document.getElementById('photo-preview');
+    const photoRemove = document.getElementById('photo-remove');
+    const photoInfo = document.getElementById('photo-info');
+    
+    if (photoPreview) {
+        photoPreview.style.display = 'none';
+        photoPreview.src = '';
+    }
+    if (photoRemove) photoRemove.style.display = 'none';
+    if (photoInfo) photoInfo.style.display = 'none';
+
+    if (observation.photo) {
+        this.currentPhoto = observation.photo;
+        const preview = document.getElementById('photo-preview');
+        if (preview) {
+            preview.src = observation.photo.data;
+            preview.style.display = 'block';
+            preview.alt = 'Observation photo preview';
+        }
+        
+        const photoRemove = document.getElementById('photo-remove');
+        if (photoRemove) {
+            photoRemove.style.display = 'flex';
+        }
+        
+        const photoInfo = document.getElementById('photo-info');
+        const photoSize = document.getElementById('photo-size');
+        if (photoSize) photoSize.textContent = `Size: ${this.formatBytes(observation.photo.compressedSize || observation.photo.data.length * 3/4)}`;
+        if (photoInfo) photoInfo.style.display = 'block';
+    }
+
+    const recordBtn = document.getElementById('record-btn');
+    if (recordBtn) {
+        recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
+        recordBtn.dataset.editingId = id;
+        recordBtn.onclick = () => this.handleUpdateObservation(id);
+    }
+    
+    this.switchTab('record');
+    if (observerNameInput) observerNameInput.focus();
+},
+```
+
+6. Add CSS for Photo Remove Button Hover
+
+Add this CSS to ensure the remove button is always visible when photo is present:
+
+```css
+/* Ensure photo remove button is always clickable */
+.photo-preview-container:hover .photo-remove {
+    display: flex !important;
+}
+
+/* Make photo container more responsive */
+.photo-container {
+    position: relative;
+    min-height: 100px;
+}
+
+.photo-preview {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.photo-preview:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+/* Ensure remove button is accessible */
+.photo-remove:focus {
+    outline: 2px solid var(--danger);
+    outline-offset: 2px;
+}
+
+/* Improve photo info display */
+#photo-info {
+    background: var(--light);
+    padding: 0.5rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+}
+
+#photo-info span {
+    display: inline-block;
+    margin-right: 1rem;
+}
+
+#photo-info i {
+    margin-right: 0.25rem;
+    opacity: 0.7;
+}
+```
+
+Key Changes Made:
+
+1. Photo Removal: Fixed event delegation so the remove button works consistently
+2. Flickering: Moved the "Photo added successfully" message to only show AFTER the image is fully loaded
+3. Submission Feedback: The form now shows clear success/failure messages
+4. Edit Mode: Photos can now be properly removed when editing observations
+5. Memory Cleanup: Added proper cleanup to prevent memory leaks
+6. CSS Fixes: Ensure the remove button is always visible when needed
+
+These changes should resolve all the issues you mentioned. The photo removal should now work reliably in both new observations and edit mode, the flickering should stop, and you'll get proper feedback when saving observations.
