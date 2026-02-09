@@ -1,202 +1,46 @@
-Looking at your code, I can identify the issue. The problem is in the editObservation() method. You have some custom tab switching logic at the end of that method, but it's not properly activating the tab system. The switchTab() function is designed to handle this correctly, but you're not calling it.
+I see the issue. Looking more closely at your switchTab() method, I notice there's a problem with how it handles the display of tab panels. The method uses both classList.toggle('active') and also sets display style properties, which might be conflicting.
 
-Here's the issue and the fix:
-
-The Problem
-
-In your editObservation() method, you have custom code that tries to manually switch tabs (lines near the end of the method), but this doesn't properly use the switchTab() function which handles all the tab switching logic correctly.
-
-The Solution
-
-Replace the tab switching code in your editObservation() method with a call to switchTab(). Here's the corrected editObservation() method:
+Here's the corrected switchTab() method that should work properly:
 
 ```javascript
-// Edit an observation
-editObservation(id) {
-    const observation = this.observations.find(obs => obs.id === id);
-    if (!observation) return;
-
-    const dateTime = new Date(observation.timestamp);
-    const dateStr = dateTime.toISOString().split('T')[0];
-    const timeStr = dateTime.toTimeString().slice(0, 5);
-
-    const dateInput = document.getElementById('observation-date');
-    const timeInput = document.getElementById('observation-time');
-    const observerNameInput = document.getElementById('observer-name');
-    const scientificNameInput = document.getElementById('scientific-name');
-    const commonNameInput = document.getElementById('common-name');
-    const locationInput = document.getElementById('location');
-    const habitatInput = document.getElementById('habitat');
-    const observationTypeInput = document.getElementById('observation-type');
-    const characteristicsInput = document.getElementById('characteristics');
-    const notesInput = document.getElementById('notes');
-    const referencesInput = document.getElementById('references');
-    const otherEquipmentInput = document.getElementById('other-equipment');
-    
-    if (dateInput) dateInput.value = dateStr;
-    if (timeInput) timeInput.value = timeStr;
-    if (observerNameInput) observerNameInput.value = observation.observerName;
-    if (scientificNameInput) scientificNameInput.value = observation.scientificName;
-    if (commonNameInput) commonNameInput.value = observation.commonName;
-    if (locationInput) locationInput.value = observation.location.text;
-    if (habitatInput) habitatInput.value = observation.habitat;
-    if (observationTypeInput) observationTypeInput.value = observation.observationType;
-    if (characteristicsInput) characteristicsInput.value = observation.characteristics;
-    if (notesInput) notesInput.value = observation.notes;
-    if (referencesInput) referencesInput.value = observation.references;
-
-    document.querySelectorAll('input[name="equipment"]').forEach(cb => {
-        cb.checked = false;
-        if (observation.equipment) {
-            const eqValue = cb.value;
-            observation.equipment.forEach(eq => {
-                if (eq.startsWith('other:') && eqValue === 'other-equipment') {
-                    cb.checked = true;
-                    if (otherEquipmentInput) {
-                        otherEquipmentInput.value = eq.substring(6);
-                        otherEquipmentInput.style.display = 'block';
-                    }
-                } else if (eq === eqValue) {
-                    cb.checked = true;
-                }
-            });
-        }
-    });
-
-    // Clear current photo first
-    this.currentPhoto = null;
-    const photoPreview = document.getElementById('photo-preview');
-    const photoRemove = document.getElementById('photo-remove');
-    const photoInfo = document.getElementById('photo-info');
-    
-    if (photoPreview) {
-        photoPreview.style.display = 'none';
-        photoPreview.src = '';
-    }
-    if (photoRemove) photoRemove.style.display = 'none';
-    if (photoInfo) photoInfo.style.display = 'none';
-
-    if (observation.photo) {
-        this.currentPhoto = observation.photo;
-        const preview = document.getElementById('photo-preview');
-        if (preview) {
-            preview.src = observation.photo.data;
-            preview.style.display = 'block';
-            preview.alt = 'Observation photo preview';
-        }
-        
-        const photoRemove = document.getElementById('photo-remove');
-        if (photoRemove) {
-            photoRemove.style.display = 'flex';
-        }
-        
-        const photoInfo = document.getElementById('photo-info');
-        const photoSize = document.getElementById('photo-size');
-        if (photoSize) photoSize.textContent = `Size: ${this.formatBytes(observation.photo.compressedSize || observation.photo.data.length * 3/4)}`;
-        if (photoInfo) photoInfo.style.display = 'block';
-    }
-
-    const recordBtn = document.getElementById('record-btn');
-    if (recordBtn) {
-        recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
-        recordBtn.dataset.editingId = id;
-        recordBtn.onclick = () => this.handleUpdateObservation(id);
-    }
-    
-    // FIXED: Use the switchTab() method instead of manual tab switching
-    this.switchTab('record');
-    
-    // Add a visual indicator that we're editing
-    const header = document.querySelector('.header');
-    if (header) {
-        header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
-        header.style.borderBottom = '3px solid #2e8b57';
-        
-        // Remove the effect after 3 seconds
-        setTimeout(() => {
-            if (header) {
-                header.style.boxShadow = '';
-                header.style.borderBottom = '';
-            }
-        }, 3000);
-    }
-    
-    // Focus on the first field
-    setTimeout(() => {
-        if (observerNameInput) {
-            observerNameInput.focus();
-            observerNameInput.select(); // Also select the text
-        }
-        
-        // Scroll to top on mobile
-        if (window.innerWidth < 768) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }, 100);
-    
-    // Show a clear message
-    this.showStatus(`✏️ Editing observation: ${id}`, 'info');
-}
-```
-
-The key change is replacing the custom tab switching code (lines starting with // SIMPLE TAB SWITCHING...) with a single call to this.switchTab('record').
-
-Alternative: Fix the switchTab() method
-
-If for some reason switchTab() isn't working, here's what to check in your switchTab() method:
-
-Make sure your switchTab() method properly handles the display of tab panels. The current switchTab() method looks good, but here's a simplified version to ensure it works:
-
-```javascript
-// Switch between tabs - ENHANCED with better visual feedback
+// Switch between tabs
 switchTab(tabName) {
-    console.log(`Switching to tab: ${tabName}`); // Debug log
-    
-    // Update tab buttons
+    // Tab navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {
         const isActive = btn.dataset.tab === tabName;
         btn.classList.toggle('active', isActive);
         btn.setAttribute('aria-selected', isActive);
-        
-        // Ensure visual feedback
-        if (isActive) {
-            btn.style.backgroundColor = 'var(--primary-color)';
-            btn.style.color = 'white';
-        } else {
-            btn.style.backgroundColor = '';
-            btn.style.color = '';
-        }
     });
 
-    // Update tab panels
+    // Tab panels - CRITICAL FIX: Use display property instead of just classes
     document.querySelectorAll('.tab-panel').forEach(panel => {
         const isActive = panel.id === `${tabName}-panel`;
-        panel.classList.toggle('active', isActive);
-        panel.style.display = isActive ? 'block' : 'none'; // Ensure display property
-        panel.setAttribute('tabindex', isActive ? '0' : '-1');
         
-        // Add visual transition effect
         if (isActive) {
-            panel.style.opacity = '0';
-            setTimeout(() => {
-                panel.style.transition = 'opacity 0.3s ease';
-                panel.style.opacity = '1';
-            }, 10);
+            panel.classList.add('active');
+            panel.style.display = 'block';
+            panel.setAttribute('tabindex', '0');
+        } else {
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+            panel.setAttribute('tabindex', '-1');
         }
     });
 
-    // Hide export previews when switching away from export
+    // Hide export download and progress
     const exportDownload = document.getElementById('export-download');
     const pdfProgress = document.getElementById('pdf-progress');
     
     if (exportDownload) exportDownload.style.display = 'none';
     if (pdfProgress) pdfProgress.style.display = 'none';
     
+    // Hide previews when switching away from export
     if (tabName !== 'export') {
         this.hideCSVPreview();
         this.hideJSONPreview();
     }
     
+    // Render logbook if switching to that tab
     if (tabName === 'logbook') {
         this.renderLogbook();
     }
@@ -213,19 +57,123 @@ switchTab(tabName) {
             tabPanel.focus();
         }, 100);
     }
-    
-    // Debug: Log current active tab
-    console.log(`Active tab panel: ${tabName}-panel`);
 }
 ```
 
-Summary
+And here's an alternative approach if the above doesn't work. Update your editObservation() method to include a small delay and ensure the tab switch happens:
 
-The main fix is to replace the custom tab switching code in editObservation() with this.switchTab('record'). This ensures that all the proper tab switching logic is executed, including:
+```javascript
+// Edit an observation
+editObservation(id) {
+    const observation = this.observations.find(obs => obs.id === id);
+    if (!observation) return;
 
-· Updating tab button classes
-· Showing/hiding tab panels
-· Handling accessibility attributes
-· Managing export previews
+    const dateTime = new Date(observation.timestamp);
+    const dateStr = dateTime.toISOString().split('T')[0];
+    const timeStr = dateTime.toTimeString().slice(0, 5);
 
-The switchTab() method is already implemented correctly in your code, so just calling it should fix the issue.
+    // ... (all your existing form population code remains the same) ...
+    
+    // FIXED: Use switchTab with a small delay to ensure DOM updates
+    setTimeout(() => {
+        this.switchTab('record');
+    }, 50);
+    
+    // Add a visual indicator that we're editing
+    const header = document.querySelector('.header');
+    if (header) {
+        header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
+        header.style.borderBottom = '3px solid #2e8b57';
+        
+        // Remove the effect after 3 seconds
+        setTimeout(() => {
+            if (header) {
+                header.style.boxShadow = '';
+                header.style.borderBottom = '';
+            }
+        }, 3000);
+    }
+    
+    // Focus on the first field - with a longer delay to ensure tab switch is complete
+    setTimeout(() => {
+        const observerNameInput = document.getElementById('observer-name');
+        if (observerNameInput) {
+            observerNameInput.focus();
+            observerNameInput.select();
+        }
+        
+        // Scroll to top on mobile
+        if (window.innerWidth < 768) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, 150);
+    
+    // Show a clear message
+    this.showStatus(`✏️ Editing observation: ${id}`, 'info');
+}
+```
+
+If neither of these work, there might be a CSS issue. Let's check if your CSS properly shows/hides the tab panels. Add this debug function to check the tab states:
+
+```javascript
+// Add this debug method to EcoLens object
+debugTabState() {
+    console.log('Current tab state:');
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        console.log(`Panel ${panel.id}:`, {
+            hasActiveClass: panel.classList.contains('active'),
+            displayStyle: panel.style.display,
+            computedDisplay: window.getComputedStyle(panel).display,
+            isVisible: panel.offsetParent !== null
+        });
+    });
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        console.log(`Button ${btn.dataset.tab}:`, {
+            hasActiveClass: btn.classList.contains('active'),
+            ariaSelected: btn.getAttribute('aria-selected')
+        });
+    });
+}
+
+// Then call it in editObservation after switchTab:
+editObservation(id) {
+    // ... existing code ...
+    
+    setTimeout(() => {
+        this.switchTab('record');
+        this.debugTabState(); // Debug output
+    }, 50);
+    
+    // ... rest of code ...
+}
+```
+
+Also, check if your CSS has any !important rules that might be overriding the JavaScript. Your CSS should look something like this:
+
+```css
+/* Tab panels should be hidden by default */
+.tab-panel {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* Active tab panel should be visible */
+.tab-panel.active {
+    display: block !important; /* Important to override inline styles if needed */
+    opacity: 1;
+}
+
+/* Tab buttons */
+.tab-btn {
+    /* Your button styles */
+}
+
+.tab-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+```
+
+The key issue is likely that your switchTab() method needs to both add/remove the active class AND set the display property, since CSS might be using both.
