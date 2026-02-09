@@ -1,4 +1,4 @@
-<!-- Working Version 2.2.6.9. Data Import Issues Now Fixed.  -->
+<!-- Working Version 2.3.2. Data Import Issues Now Fixed. Current issue with Observation Record Edit not switching tabs. -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -6424,8 +6424,53 @@ const EcoLens = {
             recordBtn.onclick = () => this.handleUpdateObservation(id);
         }
         
-        this.switchTab('record');
-        if (observerNameInput) observerNameInput.focus();
+        // SIMPLE TAB SWITCHING - No fancy function needed
+        // 1. Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-tab') === 'record') {
+                btn.classList.add('active');
+            }
+        });
+        
+        // 2. Update tab panels
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+            if (panel.id === 'record-panel') {
+                panel.classList.add('active');
+                panel.style.display = 'block';
+            }
+        });
+        
+        // 3. Add a visual indicator that we're editing
+        const header = document.querySelector('.header');
+        if (header) {
+            header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
+            header.style.borderBottom = '3px solid #2e8b57';
+            
+            // Remove the effect after 3 seconds
+            setTimeout(() => {
+                header.style.boxShadow = '';
+                header.style.borderBottom = '';
+            }, 3000);
+        }
+        
+        // 4. Focus on the first field
+        setTimeout(() => {
+            if (observerNameInput) {
+                observerNameInput.focus();
+                observerNameInput.select(); // Also select the text
+            }
+            
+            // Scroll to top on mobile
+            if (window.innerWidth < 768) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }, 100);
+        
+        // 5. Show a clear message
+        this.showStatus(`✏️ Editing observation: ${id}`, 'info');
     },
 
     // Handle updating an observation
