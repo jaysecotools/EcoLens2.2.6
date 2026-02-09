@@ -1,14 +1,62 @@
-this.switchTab('record');
+<script>
+// Main application state
+const EcoLens = {
+    observations: [],
+    currentPhoto: null,
+    map: null,
+    mapMarker: null,
+    mapEnabled: false,
+    isLocating: false,
+    isGeneratingPDF: false,
+    csvPreviewData: null,
+    jsonPreviewData: null,
+    selectedObservations: new Set(),
+    miniMap: null,
+    accuracyCircle: null,
+    canvasCleanupList: [],
+    offlineQueue: [],
+    isOnline: navigator.onLine,
+    memoryCleanupInterval: null,
+    pdfPhotoQueue: [],
 
-// Add a small delay to ensure tab switch completes
-setTimeout(() => {
-    if (observerNameInput) observerNameInput.focus();
-    
-    // Verify we're on the right tab
-    const recordPanel = document.getElementById('record-panel');
-    if (recordPanel && !recordPanel.classList.contains('active')) {
-        console.error('Record panel is not active!');
-        // Force activate it
-        this.switchTab('record');
-    }
-}, 50);
+    // Initialize the application
+    init() {
+        console.log('Initializing EcoLens...');
+        this.initDarkMode();
+        this.loadObservations();
+        this.setupEventListeners();
+        this.renderLogbook();
+        this.updateDateInputs();
+        this.setCurrentDateTime();
+        
+        // Add this line to migrate existing data
+        if (this.observations.length > 0) {
+            setTimeout(() => this.migrateExistingObservations(), 2000);
+        }
+        
+        // FAB button setup
+        const fabBtn = document.getElementById('fab-add');
+        if (fabBtn) {
+            fabBtn.addEventListener('click', () => {
+                this.switchTab('record');
+                setTimeout(() => {
+                    if (window.innerWidth < 768) {
+                        const recordPanel = document.getElementById('record-panel');
+                        if (recordPanel) {
+                            recordPanel.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                    const observerNameInput = document.getElementById('observer-name');
+                    if (observerNameInput) observerNameInput.focus();
+                }, 100);
+            });
+        }
+
+        // Start memory cleanup interval
+        this.memoryCleanupInterval = setInterval(() => {
+            this.cleanupMemory();
+        }, 30000);
+
+        // Setup offline sync
+        this.setupOfflineSync();
+    },
