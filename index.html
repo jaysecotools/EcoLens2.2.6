@@ -1,4 +1,4 @@
-<!-- Working Version 2.3.2. Data Import Issues Now Fixed. Current issue with Observation Record Edit not switching tabs. -->
+<!-- Working Version 2.4. Data Import Issues Now Fixed. Observation Edit Tab Switching now fixed. -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -6332,145 +6332,146 @@ const EcoLens = {
         });
     },
 
-    // Edit an observation
+    
     editObservation(id) {
         const observation = this.observations.find(obs => obs.id === id);
         if (!observation) return;
 
-        const dateTime = new Date(observation.timestamp);
-        const dateStr = dateTime.toISOString().split('T')[0];
-        const timeStr = dateTime.toTimeString().slice(0, 5);
-
-        const dateInput = document.getElementById('observation-date');
-        const timeInput = document.getElementById('observation-time');
-        const observerNameInput = document.getElementById('observer-name');
-        const scientificNameInput = document.getElementById('scientific-name');
-        const commonNameInput = document.getElementById('common-name');
-        const locationInput = document.getElementById('location');
-        const habitatInput = document.getElementById('habitat');
-        const observationTypeInput = document.getElementById('observation-type');
-        const characteristicsInput = document.getElementById('characteristics');
-        const notesInput = document.getElementById('notes');
-        const referencesInput = document.getElementById('references');
-        const otherEquipmentInput = document.getElementById('other-equipment');
+        // FIRST: Switch to the Record tab
+        this.switchTab('record');
         
-        if (dateInput) dateInput.value = dateStr;
-        if (timeInput) timeInput.value = timeStr;
-        if (observerNameInput) observerNameInput.value = observation.observerName;
-        if (scientificNameInput) scientificNameInput.value = observation.scientificName;
-        if (commonNameInput) commonNameInput.value = observation.commonName;
-        if (locationInput) locationInput.value = observation.location.text;
-        if (habitatInput) habitatInput.value = observation.habitat;
-        if (observationTypeInput) observationTypeInput.value = observation.observationType;
-        if (characteristicsInput) characteristicsInput.value = observation.characteristics;
-        if (notesInput) notesInput.value = observation.notes;
-        if (referencesInput) referencesInput.value = observation.references;
-
-        document.querySelectorAll('input[name="equipment"]').forEach(cb => {
-            cb.checked = false;
-            if (observation.equipment) {
-                const eqValue = cb.value;
-                observation.equipment.forEach(eq => {
-                    if (eq.startsWith('other:') && eqValue === 'other-equipment') {
-                        cb.checked = true;
-                        if (otherEquipmentInput) {
-                            otherEquipmentInput.value = eq.substring(6);
-                            otherEquipmentInput.style.display = 'block';
-                        }
-                    } else if (eq === eqValue) {
-                        cb.checked = true;
-                    }
-                });
-            }
-        });
-
-        // Clear current photo first
-        this.currentPhoto = null;
-        const photoPreview = document.getElementById('photo-preview');
-        const photoRemove = document.getElementById('photo-remove');
-        const photoInfo = document.getElementById('photo-info');
-        
-        if (photoPreview) {
-            photoPreview.style.display = 'none';
-            photoPreview.src = '';
-        }
-        if (photoRemove) photoRemove.style.display = 'none';
-        if (photoInfo) photoInfo.style.display = 'none';
-
-        if (observation.photo) {
-            this.currentPhoto = observation.photo;
-            const preview = document.getElementById('photo-preview');
-            if (preview) {
-                preview.src = observation.photo.data;
-                preview.style.display = 'block';
-                preview.alt = 'Observation photo preview';
-            }
-            
-            const photoRemove = document.getElementById('photo-remove');
-            if (photoRemove) {
-                photoRemove.style.display = 'flex';
-            }
-            
-            const photoInfo = document.getElementById('photo-info');
-            const photoSize = document.getElementById('photo-size');
-            if (photoSize) photoSize.textContent = `Size: ${this.formatBytes(observation.photo.compressedSize || observation.photo.data.length * 3/4)}`;
-            if (photoInfo) photoInfo.style.display = 'block';
-        }
-
-        const recordBtn = document.getElementById('record-btn');
-        if (recordBtn) {
-            recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
-            recordBtn.dataset.editingId = id;
-            recordBtn.onclick = () => this.handleUpdateObservation(id);
-        }
-        
-        // SIMPLE TAB SWITCHING - No fancy function needed
-        // 1. Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.getAttribute('data-tab') === 'record') {
-                btn.classList.add('active');
-            }
-        });
-        
-        // 2. Update tab panels
-        document.querySelectorAll('.tab-panel').forEach(panel => {
-            panel.classList.remove('active');
-            panel.style.display = 'none';
-            if (panel.id === 'record-panel') {
-                panel.classList.add('active');
-                panel.style.display = 'block';
-            }
-        });
-        
-        // 3. Add a visual indicator that we're editing
-        const header = document.querySelector('.header');
-        if (header) {
-            header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
-            header.style.borderBottom = '3px solid #2e8b57';
-            
-            // Remove the effect after 3 seconds
-            setTimeout(() => {
-                header.style.boxShadow = '';
-                header.style.borderBottom = '';
-            }, 3000);
-        }
-        
-        // 4. Focus on the first field
+        // Wait a brief moment for the tab transition to start
         setTimeout(() => {
-            if (observerNameInput) {
-                observerNameInput.focus();
-                observerNameInput.select(); // Also select the text
+            // Now populate the form with the observation data
+            const dateTime = new Date(observation.timestamp);
+            const dateStr = dateTime.toISOString().split('T')[0];
+            const timeStr = dateTime.toTimeString().slice(0, 5);
+
+            const dateInput = document.getElementById('observation-date');
+            const timeInput = document.getElementById('observation-time');
+            const observerNameInput = document.getElementById('observer-name');
+            const scientificNameInput = document.getElementById('scientific-name');
+            const commonNameInput = document.getElementById('common-name');
+            const locationInput = document.getElementById('location');
+            const habitatInput = document.getElementById('habitat');
+            const observationTypeInput = document.getElementById('observation-type');
+            const characteristicsInput = document.getElementById('characteristics');
+            const notesInput = document.getElementById('notes');
+            const referencesInput = document.getElementById('references');
+            const otherEquipmentInput = document.getElementById('other-equipment');
+            
+            if (dateInput) dateInput.value = dateStr;
+            if (timeInput) timeInput.value = timeStr;
+            if (observerNameInput) observerNameInput.value = observation.observerName;
+            if (scientificNameInput) scientificNameInput.value = observation.scientificName;
+            if (commonNameInput) commonNameInput.value = observation.commonName;
+            if (locationInput) locationInput.value = observation.location.text;
+            if (habitatInput) habitatInput.value = observation.habitat;
+            if (observationTypeInput) observationTypeInput.value = observation.observationType;
+            if (characteristicsInput) characteristicsInput.value = observation.characteristics;
+            if (notesInput) notesInput.value = observation.notes;
+            if (referencesInput) referencesInput.value = observation.references;
+
+            document.querySelectorAll('input[name="equipment"]').forEach(cb => {
+                cb.checked = false;
+                if (observation.equipment) {
+                    const eqValue = cb.value;
+                    observation.equipment.forEach(eq => {
+                        if (eq.startsWith('other:') && eqValue === 'other-equipment') {
+                            cb.checked = true;
+                            if (otherEquipmentInput) {
+                                otherEquipmentInput.value = eq.substring(6);
+                                otherEquipmentInput.style.display = 'block';
+                            }
+                        } else if (eq === eqValue) {
+                            cb.checked = true;
+                        }
+                    });
+                }
+            });
+
+            // Clear current photo first
+            this.currentPhoto = null;
+            const photoPreview = document.getElementById('photo-preview');
+            const photoRemove = document.getElementById('photo-remove');
+            const photoInfo = document.getElementById('photo-info');
+            
+            if (photoPreview) {
+                photoPreview.style.display = 'none';
+                photoPreview.src = '';
+            }
+            if (photoRemove) photoRemove.style.display = 'none';
+            if (photoInfo) photoInfo.style.display = 'none';
+
+            if (observation.photo) {
+                this.currentPhoto = observation.photo;
+                const preview = document.getElementById('photo-preview');
+                if (preview) {
+                    // Use thumbnail if available, otherwise use full data
+                    const photoData = observation.photo.thumbnailData || observation.photo.fullData || observation.photo.data;
+                    if (photoData) {
+                        preview.src = photoData;
+                        preview.style.display = 'block';
+                        preview.alt = 'Observation photo preview';
+                    }
+                }
+                
+                const photoRemove = document.getElementById('photo-remove');
+                if (photoRemove) {
+                    photoRemove.style.display = 'flex';
+                }
+                
+                const photoInfo = document.getElementById('photo-info');
+                const photoSize = document.getElementById('photo-size');
+                if (photoSize && observation.photo.metadata) {
+                    photoSize.innerHTML = `<i class="fas fa-weight-hanging" aria-hidden="true"></i> Size: ${this.formatBytes(observation.photo.metadata.compressedSize || observation.photo.data.length * 3/4)}`;
+                }
+                if (photoInfo) photoInfo.style.display = 'block';
+            }
+
+            const recordBtn = document.getElementById('record-btn');
+            if (recordBtn) {
+                recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
+                recordBtn.dataset.editingId = id;
+                recordBtn.onclick = () => this.handleUpdateObservation(id);
             }
             
-            // Scroll to top on mobile
-            if (window.innerWidth < 768) {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Add a visual indicator that we're editing
+            const header = document.querySelector('.header');
+            if (header) {
+                const originalBoxShadow = header.style.boxShadow;
+                const originalBorderBottom = header.style.borderBottom;
+                
+                header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
+                header.style.borderBottom = '3px solid #2e8b57';
+                
+                // Remove the effect after 3 seconds
+                setTimeout(() => {
+                    header.style.boxShadow = originalBoxShadow;
+                    header.style.borderBottom = originalBorderBottom;
+                }, 3000);
             }
-        }, 100);
-        
-        // 5. Show a clear message
-        this.showStatus(`✏️ Editing observation: ${id}`, 'info');
+            
+            // Focus on the first field
+            setTimeout(() => {
+                if (observerNameInput) {
+                    observerNameInput.focus();
+                    observerNameInput.select();
+                }
+                
+                // Scroll to top on mobile
+                if (window.innerWidth < 768) {
+                    const recordPanel = document.getElementById('record-panel');
+                    if (recordPanel) {
+                        recordPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            }, 200);
+            
+            // Show a clear message
+            this.showStatus(`✏️ Editing observation: ${id}`, 'info');
+            
+        }, 100); // Small delay to ensure tab switch is processed
     },
 
     // Handle updating an observation
