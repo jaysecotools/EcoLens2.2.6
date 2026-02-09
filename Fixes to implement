@@ -1,29 +1,80 @@
-I see the issue. Looking more closely at your switchTab() method, I notice there's a problem with how it handles the display of tab panels. The method uses both classList.toggle('active') and also sets display style properties, which might be conflicting.
+Found the issue! Looking at your CSS, I can see the problem is with how .tab-panel is styled. The issue is in these rules:
 
-Here's the corrected switchTab() method that should work properly:
+```css
+.tab-panel {
+    display: none;
+    animation: fadeIn 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.tab-panel.active {
+    display: block;
+}
+```
+
+The problem is that display: none completely removes the element from the rendering flow. When you try to animate it with fadeIn, it can't properly transition because you can't animate from display: none to display: block.
+
+Here's the fixed CSS for the tab panels:
+
+```css
+/* Tab Panels - FIXED */
+.tab-panel {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+    animation: fadeIn 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: opacity 0.3s ease, height 0.3s ease;
+}
+
+.tab-panel.active {
+    opacity: 1;
+    height: auto;
+    overflow: visible;
+    visibility: visible;
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+        transform: translateY(15px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+```
+
+And update your JavaScript switchTab() method to use this approach:
 
 ```javascript
-// Switch between tabs
+// Switch between tabs - FIXED VERSION
 switchTab(tabName) {
-    // Tab navigation
+    console.log(`Switching to tab: ${tabName}`);
+    
+    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         const isActive = btn.dataset.tab === tabName;
         btn.classList.toggle('active', isActive);
         btn.setAttribute('aria-selected', isActive);
     });
 
-    // Tab panels - CRITICAL FIX: Use display property instead of just classes
+    // Update tab panels - Use opacity/height instead of display
     document.querySelectorAll('.tab-panel').forEach(panel => {
         const isActive = panel.id === `${tabName}-panel`;
         
         if (isActive) {
             panel.classList.add('active');
-            panel.style.display = 'block';
             panel.setAttribute('tabindex', '0');
+            panel.setAttribute('aria-hidden', 'false');
+            
+            // Force reflow to trigger animation
+            void panel.offsetWidth;
         } else {
             panel.classList.remove('active');
-            panel.style.display = 'none';
             panel.setAttribute('tabindex', '-1');
+            panel.setAttribute('aria-hidden', 'true');
         }
     });
 
@@ -55,125 +106,82 @@ switchTab(tabName) {
     if (tabPanel) {
         setTimeout(() => {
             tabPanel.focus();
-        }, 100);
+        }, 350); // Wait for animation to complete
     }
+    
+    // Debug log
+    console.log(`Active tab: ${tabName}, Panel visibility: ${tabPanel ? 'found' : 'not found'}`);
 }
 ```
 
-And here's an alternative approach if the above doesn't work. Update your editObservation() method to include a small delay and ensure the tab switch happens:
+If you want to keep using display: none/display: block instead of opacity, here's an alternative fix using JavaScript to handle the transition:
 
 ```javascript
-// Edit an observation
-editObservation(id) {
-    const observation = this.observations.find(obs => obs.id === id);
-    if (!observation) return;
-
-    const dateTime = new Date(observation.timestamp);
-    const dateStr = dateTime.toISOString().split('T')[0];
-    const timeStr = dateTime.toTimeString().slice(0, 5);
-
-    // ... (all your existing form population code remains the same) ...
+// Switch between tabs - ALTERNATIVE FIX using display property
+switchTab(tabName) {
+    console.log(`Switching to tab: ${tabName}`);
     
-    // FIXED: Use switchTab with a small delay to ensure DOM updates
-    setTimeout(() => {
-        this.switchTab('record');
-    }, 50);
-    
-    // Add a visual indicator that we're editing
-    const header = document.querySelector('.header');
-    if (header) {
-        header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
-        header.style.borderBottom = '3px solid #2e8b57';
-        
-        // Remove the effect after 3 seconds
-        setTimeout(() => {
-            if (header) {
-                header.style.boxShadow = '';
-                header.style.borderBottom = '';
-            }
-        }, 3000);
-    }
-    
-    // Focus on the first field - with a longer delay to ensure tab switch is complete
-    setTimeout(() => {
-        const observerNameInput = document.getElementById('observer-name');
-        if (observerNameInput) {
-            observerNameInput.focus();
-            observerNameInput.select();
-        }
-        
-        // Scroll to top on mobile
-        if (window.innerWidth < 768) {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }, 150);
-    
-    // Show a clear message
-    this.showStatus(`✏️ Editing observation: ${id}`, 'info');
-}
-```
-
-If neither of these work, there might be a CSS issue. Let's check if your CSS properly shows/hides the tab panels. Add this debug function to check the tab states:
-
-```javascript
-// Add this debug method to EcoLens object
-debugTabState() {
-    console.log('Current tab state:');
-    document.querySelectorAll('.tab-panel').forEach(panel => {
-        console.log(`Panel ${panel.id}:`, {
-            hasActiveClass: panel.classList.contains('active'),
-            displayStyle: panel.style.display,
-            computedDisplay: window.getComputedStyle(panel).display,
-            isVisible: panel.offsetParent !== null
-        });
-    });
-    
+    // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        console.log(`Button ${btn.dataset.tab}:`, {
-            hasActiveClass: btn.classList.contains('active'),
-            ariaSelected: btn.getAttribute('aria-selected')
-        });
+        const isActive = btn.dataset.tab === tabName;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive);
     });
-}
 
-// Then call it in editObservation after switchTab:
-editObservation(id) {
-    // ... existing code ...
-    
-    setTimeout(() => {
-        this.switchTab('record');
-        this.debugTabState(); // Debug output
-    }, 50);
-    
-    // ... rest of code ...
+    // Update tab panels - Use setTimeout for animation
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        const isActive = panel.id === `${tabName}-panel`;
+        
+        if (isActive) {
+            // First make it visible with opacity 0
+            panel.style.opacity = '0';
+            panel.style.display = 'block';
+            panel.classList.add('active');
+            panel.setAttribute('tabindex', '0');
+            
+            // Then fade in
+            setTimeout(() => {
+                panel.style.transition = 'opacity 0.3s ease';
+                panel.style.opacity = '1';
+            }, 10);
+        } else {
+            // Fade out then hide
+            if (panel.classList.contains('active')) {
+                panel.style.opacity = '0';
+                setTimeout(() => {
+                    panel.style.display = 'none';
+                    panel.classList.remove('active');
+                }, 300);
+            } else {
+                panel.style.display = 'none';
+                panel.classList.remove('active');
+            }
+            panel.setAttribute('tabindex', '-1');
+        }
+    });
+
+    // ... rest of the method remains the same
 }
 ```
 
-Also, check if your CSS has any !important rules that might be overriding the JavaScript. Your CSS should look something like this:
+And update the CSS slightly:
 
 ```css
-/* Tab panels should be hidden by default */
 .tab-panel {
     display: none;
     opacity: 0;
     transition: opacity 0.3s ease;
 }
 
-/* Active tab panel should be visible */
 .tab-panel.active {
-    display: block !important; /* Important to override inline styles if needed */
+    /* display: block is set by JavaScript */
     opacity: 1;
-}
-
-/* Tab buttons */
-.tab-btn {
-    /* Your button styles */
-}
-
-.tab-btn.active {
-    background-color: var(--primary-color);
-    color: white;
 }
 ```
 
-The key issue is likely that your switchTab() method needs to both add/remove the active class AND set the display property, since CSS might be using both.
+The key issue is that display: none can't be animated, so you need to use either:
+
+1. Opacity/height approach: Use opacity: 0, height: 0, visibility: hidden instead of display: none
+2. JavaScript-controlled approach: Use JavaScript to handle the fade in/out before changing display property
+
+I recommend the first approach (opacity/height) as it's more performant and easier to maintain.
