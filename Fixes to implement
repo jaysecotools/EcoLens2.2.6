@@ -1,33 +1,8 @@
-Ah, I found the issue! When you click "Edit" on an observation, it doesn't automatically switch to the Record tab. Let me fix that.
+No problem! Let's add some simple visual debugging and a direct fix.
 
-The Problem:
+Quick Fix for Edit Button:
 
-When you click the "Edit" button in the Logbook, it calls editObservation() but doesn't switch to the Record tab to show the form with the data.
-
-The Fix:
-
-Find the editObservation() method in your code (around line 3780). Look for this section:
-
-```javascript
-    // Edit an observation
-    editObservation(id) {
-        const observation = this.observations.find(obs => obs.id === id);
-        if (!observation) return;
-
-        const dateTime = new Date(observation.timestamp);
-        const dateStr = dateTime.toISOString().split('T')[0];
-        const timeStr = dateTime.toTimeString().slice(0, 5);
-        // ... rest of the method
-```
-
-At the VERY END of the editObservation() method, after all the form fields are populated, add this line:
-
-```javascript
-        // Switch to Record tab after populating form
-        this.switchTab('record');
-```
-
-So the end of your editObservation() method should look like this:
+Replace the end of your editObservation() method with this simple version:
 
 ```javascript
         const recordBtn = document.getElementById('record-btn');
@@ -37,52 +12,67 @@ So the end of your editObservation() method should look like this:
             recordBtn.onclick = () => this.handleUpdateObservation(id);
         }
         
-        // ADD THIS LINE - Switch to Record tab
-        this.switchTab('record');
+        // SIMPLE TAB SWITCHING - No fancy function needed
+        // 1. Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-tab') === 'record') {
+                btn.classList.add('active');
+            }
+        });
         
-        if (observerNameInput) observerNameInput.focus();
-    },
-```
-
-Alternative: If you want it to scroll to the form on mobile too:
-
-Replace that last part with:
-
-```javascript
-        const recordBtn = document.getElementById('record-btn');
-        if (recordBtn) {
-            recordBtn.innerHTML = '<i class="fas fa-save"></i> Update Observation';
-            recordBtn.dataset.editingId = id;
-            recordBtn.onclick = () => this.handleUpdateObservation(id);
+        // 2. Update tab panels
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+            if (panel.id === 'record-panel') {
+                panel.classList.add('active');
+                panel.style.display = 'block';
+            }
+        });
+        
+        // 3. Add a visual indicator that we're editing
+        const header = document.querySelector('.header');
+        if (header) {
+            header.style.boxShadow = '0 4px 20px rgba(46, 139, 87, 0.3)';
+            header.style.borderBottom = '3px solid #2e8b57';
+            
+            // Remove the effect after 3 seconds
+            setTimeout(() => {
+                header.style.boxShadow = '';
+                header.style.borderBottom = '';
+            }, 3000);
         }
         
-        // Switch to Record tab and scroll to form
-        this.switchTab('record');
-        
-        // Scroll to the form on mobile
+        // 4. Focus on the first field
         setTimeout(() => {
+            if (observerNameInput) {
+                observerNameInput.focus();
+                observerNameInput.select(); // Also select the text
+            }
+            
+            // Scroll to top on mobile
             if (window.innerWidth < 768) {
-                const recordPanel = document.getElementById('record-panel');
-                if (recordPanel) {
-                    recordPanel.scrollIntoView({ behavior: 'smooth' });
-                }
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }, 100);
         
-        if (observerNameInput) observerNameInput.focus();
+        // 5. Show a clear message
+        this.showStatus(`✏️ Editing observation: ${id}`, 'info');
     },
 ```
 
-Also, let's make the "Edit" button more obvious in the UI:
+This will:
 
-You might want to add some visual feedback. Add this at the end of editObservation():
+1. ✅ Switch to the Record tab (visually and functionally)
+2. ✅ Highlight the header so you can see it switched
+3. ✅ Focus on the first field
+4. ✅ Show a clear editing message
+5. ✅ Work even if your switchTab() function has issues
 
-```javascript
-        // Show editing status
-        this.showStatus(`Editing observation ${id}`, 'info');
-```
+If you want it even simpler:
 
-So the complete fix for the end of editObservation() is:
+Replace just the last 3 lines of your current editObservation() with:
 
 ```javascript
         const recordBtn = document.getElementById('record-btn');
@@ -92,24 +82,49 @@ So the complete fix for the end of editObservation() is:
             recordBtn.onclick = () => this.handleUpdateObservation(id);
         }
         
-        // Switch to Record tab
-        this.switchTab('record');
+        // SIMPLE FIX: Manually switch tabs
+        // Hide all panels
+        document.getElementById('logbook-panel').classList.remove('active');
+        document.getElementById('export-panel').classList.remove('active');
         
-        // Show editing status
-        this.showStatus(`Editing observation ${id}`, 'info');
+        // Show record panel
+        document.getElementById('record-panel').classList.add('active');
+        
+        // Update tab buttons
+        document.getElementById('tab-record').classList.add('active');
+        document.getElementById('tab-logbook').classList.remove('active');
+        document.getElementById('tab-export').classList.remove('active');
         
         if (observerNameInput) observerNameInput.focus();
     },
 ```
 
-Summary:
+Add This CSS for Better Visual Feedback:
 
-The issue was that editObservation() was populating the form fields but not switching tabs. Adding this.switchTab('record') tells the app to switch to the Record tab where the editing form is located.
+Add this to your CSS (anywhere in the style section):
 
-Now when you click "Edit" on any observation in the Logbook:
+```css
+/* Visual feedback for editing mode */
+body.editing-mode .header {
+    background: linear-gradient(135deg, #1e6b47 0%, #2e8b57 100%) !important;
+    box-shadow: 0 4px 20px rgba(46, 139, 87, 0.4) !important;
+}
 
-1. It populates the form with that observation's data
-2. Automatically switches to the Record tab
-3. Changes the button to say "Update Observation"
-4. Shows a status message
-5. Focuses on the first field for easy editing
+body.editing-mode .tab-btn[data-tab="record"] {
+    background: rgba(255, 255, 255, 0.3) !important;
+    color: white !important;
+    font-weight: bold !important;
+}
+```
+
+And update the JavaScript to toggle the class:
+
+```javascript
+// Add at the beginning of editObservation():
+document.body.classList.add('editing-mode');
+
+// Add when you're done editing (in handleUpdateObservation() or resetForm()):
+document.body.classList.remove('editing-mode');
+```
+
+Try the simple fix first - it should work immediately without needing to debug anything!
